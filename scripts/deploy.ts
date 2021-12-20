@@ -18,20 +18,20 @@ async function main() {
     `Owner account balance: ${ethers.utils.formatEther(balance).toString()}`
   );
 
-  const Token = await ethers.getContractFactory("Token");
-  const token = await Token.deploy(
+  const ACDMToken = await ethers.getContractFactory("Token");
+  const acdmToken = await ACDMToken.deploy(
     process.env.TOKEN_NAME as string,
     process.env.TOKEN_SYMBOL as string,
     process.env.TOKEN_MINT as string
   );
 
-  await token.deployed();
-  console.log(`Token deployed to ${token.address}`);
+  await acdmToken.deployed();
+  console.log(`Token deployed to ${acdmToken.address}`);
 
   // Sync env file
   fs.appendFileSync(
     `.env-${network}`,
-    `\r\# Deployed at \rTOKEN_ADDRESS=${token.address}\r`
+    `\r\# Deployed at \rTOKEN_ADDRESS=${acdmToken.address}\r`
   );
 }
 
