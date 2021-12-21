@@ -3,11 +3,11 @@ import { ethers } from "hardhat";
 import { BigNumber, Contract, ContractFactory } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
-// acdmToken metadata
+// ACDMToken metadata
 const tokenName = "ACDMToken";
 const symbol = "ACDM";
 const decimals = 18;
-const feeRate = 150; // 1.5% fee in basis points ?
+const initialSupply = ethers.utils.parseUnits("1000.0", decimals);
 const tenTokens = ethers.utils.parseUnits("10.0", decimals);
 const twentyTokens = ethers.utils.parseUnits("20.0", decimals);
 
@@ -28,24 +28,18 @@ describe("Token", function () {
 
   before(async () => {
     [owner, alice, bob] = await ethers.getSigners();
-    ACDMToken = await ethers.getContractFactory("Token");
+    ACDMToken = await ethers.getContractFactory("ACDMToken");
   });
 
   beforeEach(async () => {
-    acdmToken = await ACDMToken.deploy(tokenName, symbol, feeRate);
+    acdmToken = await ACDMToken.deploy(tokenName, symbol);
     await acdmToken.deployed();
 
-    // Add owner and Alice to whitelist so they dont have to pay fee
-    await acdmToken.addToWhitelist(owner.address);
-    await acdmToken.addToWhitelist(alice.address);
-
-    // Grant roles and mint some acdmTokens before transferring admin role to DAO
+    // Grant roles and mint some acdmTokens
     await acdmToken.grantRole(minterRole, alice.address);
     await acdmToken.grantRole(burnerRole, bob.address);
-    const amount = ethers.utils.parseUnits("1000.0", decimals);
-    await acdmToken.connect(alice).mint(owner.address, amount);
-    // await acdmToken.connect(alice).mint(alice.address, amount);
-    await acdmToken.connect(alice).mint(bob.address, amount);
+    await acdmToken.connect(alice).mint(owner.address, initialSupply);
+    await acdmToken.connect(alice).mint(bob.address, initialSupply);
   });
 
   describe("Deployment", function () {
@@ -61,10 +55,6 @@ describe("Token", function () {
       expect(await acdmToken.decimals()).to.be.equal(decimals);
     });
 
-    it(`Has 1.5% fee rate`, async () => {
-      expect(await acdmToken.getFeeRate()).to.be.equal(feeRate);
-    });
-
     it("Should set the right admin role", async () => {
       expect(await acdmToken.hasRole(adminRole, owner.address)).to.equal(true);
     });
@@ -76,15 +66,6 @@ describe("Token", function () {
     it("Should set the right burner role", async () => {
       expect(await acdmToken.hasRole(burnerRole, bob.address)).to.equal(true);
     });
-
-    it("Should set owner as fee recipient", async () => {
-      expect(await acdmToken.getFeeRecipient()).to.be.equal(owner.address);
-    });
-
-    it("Should add owner & Alice to whitelist", async () => {
-      expect(await acdmToken.isWhitelisted(owner.address)).to.equal(true);
-      expect(await acdmToken.isWhitelisted(alice.address)).to.equal(true);
-    });
   });
 
   describe("Ownership", function () {
@@ -94,96 +75,6 @@ describe("Token", function () {
       ).to.be.revertedWith(
         `AccessControl: account ${alice.address.toLowerCase()} is missing role ${adminRole}`
       );
-    });
-  });
-
-  describe("Whitelist", function () {
-    it("Only admin should be able to whitelist", async () => {
-      await expect(
-        acdmToken.connect(alice).addToWhitelist(alice.address)
-      ).to.be.revertedWith(
-        `AccessControl: account ${alice.address.toLowerCase()} is missing role ${adminRole}`
-      );
-    });
-
-    it("Adding to whitelist emits event", async () => {
-      await expect(acdmToken.addToWhitelist(alice.address))
-        .to.emit(acdmToken, "AddToWhitelist")
-        .withArgs(owner.address, alice.address);
-    });
-
-    it("Removing from whitelist emits event", async () => {
-      await expect(acdmToken.removeFromWhitelist(alice.address))
-        .to.emit(acdmToken, "RemoveFromWhitelist")
-        .withArgs(owner.address, alice.address);
-    });
-
-    it("Only admin should be able to remove from whitelist", async () => {
-      await expect(
-        acdmToken.connect(alice).removeFromWhitelist(owner.address)
-      ).to.be.revertedWith(
-        `AccessControl: account ${alice.address.toLowerCase()} is missing role ${adminRole}`
-      );
-    });
-  });
-
-  describe("Fees", function () {
-    it("Should not be able to change fee rate without DEFAULT_ADMIN_ROLE", async () => {
-      const newFee = 2;
-      await expect(
-        acdmToken.connect(alice).changeFeeRate(newFee)
-      ).to.be.revertedWith(
-        `AccessControl: account ${alice.address.toLowerCase()} is missing role ${adminRole}`
-      );
-    });
-
-    it("Changing fee rate emits event", async () => {
-      const newFee = ethers.utils.parseUnits("3.5", decimals);
-      await expect(acdmToken.changeFeeRate(newFee))
-        .to.emit(acdmToken, "ChangeFeeRate")
-        .withArgs(owner.address, newFee);
-    });
-
-    it("Changing fee recipient emits event", async () => {
-      await expect(acdmToken.changeFeeRecipient(alice.address))
-        .to.emit(acdmToken, "ChangeFeeRecipient")
-        .withArgs(owner.address, alice.address);
-    });
-
-    it("Should not be able to change fee recipient without DEFAULT_ADMIN_ROLE", async () => {
-      await expect(
-        acdmToken.connect(alice).changeFeeRecipient(alice.address)
-      ).to.be.revertedWith(
-        `AccessControl: account ${alice.address.toLowerCase()} is missing role ${adminRole}`
-      );
-    });
-
-    it("Admin can change fee recipient", async () => {
-      await acdmToken.changeFeeRecipient(alice.address);
-      expect(await acdmToken.getFeeRecipient()).to.be.equal(alice.address);
-    });
-
-    it("Transfer should not charge fee from whitelisted users", async () => {
-      const amount: BigNumber = tenTokens;
-      await acdmToken.transfer(alice.address, amount);
-      const aliceBalance = await acdmToken.balanceOf(alice.address);
-      expect(aliceBalance).to.equal(amount);
-    });
-
-    it("Transfer should charge fee from spender in favor of fee recipient", async () => {
-      const initBobBalance = await acdmToken.balanceOf(bob.address);
-      const fee: BigNumber = tenTokens.mul(feeRate).div(10000);
-      await acdmToken.connect(bob).transfer(alice.address, tenTokens);
-      const bobBalance = await acdmToken.balanceOf(bob.address);
-      expect(bobBalance).to.equal(initBobBalance.sub(tenTokens).sub(fee));
-    });
-
-    it("Transfer should fail if sender doesn't have enough acdmTokens to pay fee", async () => {
-      const bobBalance = await acdmToken.balanceOf(bob.address);
-      // Trying to send all Bob's acdmTokens to Alice
-      await expect(
-        acdmToken.connect(bob).transfer(alice.address, bobBalance)
-      ).to.be.revertedWith("Not enough to pay fee");
     });
   });
 
