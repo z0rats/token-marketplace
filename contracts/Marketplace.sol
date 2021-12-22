@@ -213,46 +213,38 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   function finishRound() public {
     require((rounds[numRounds].createdAt + roundTime) <= block.timestamp, "Need to wait 3 days");
 
-    // closeOpenOrders();
     changeRound(rounds[numRounds].price);
-
-    // Return tokens if trade round
-
-    // Decide which event to emit
-    // emit SaleRoundCompleted();
-    // emit TradeCompleted();
   }
 
   function changeRound(uint256 oldPrice) private {
-    uint256 newPrice = oldPrice + (oldPrice * ratePct / 10000) + fixedRate;
+    uint256 newPrice = oldPrice + (oldPrice * tokenPriceRatePct / 10000) + tokenPriceRateEth;
 
     numRounds++;
+    rounds[numRounds].createdAt = block.timestamp;
+    rounds[numRounds].price = newPrice;
+    rounds[numRounds].isOpen = false;
+
     if (isSaleRound) {
       isSaleRound = false;
-      rounds[numRounds] = Round({
-        createdAt: block.timestamp,
-        tradeVolume: 0,
-        saleVolume: 0,
-        buyVolume: 0,
-        price: newPrice,
-        tokensLeft: IERC20(token).totalSupply()
-      });
+      // burn unsold tokens
     } else {
       isSaleRound = true;
-      rounds[numRounds] = Round({
-        createdAt: block.timestamp,
-        tradeVolume: 0,
-        saleVolume: 0,
-        buyVolume: 0,
-        price: newPrice,
-        tokensLeft: IERC20(token).totalSupply()
-      });
+      closeOpenOrders(numRounds - 1);
+      // mint tokens
+      // uint256 amount = rounds[numRounds - 1].tradeVolume / oldPrice;
+      // rounds[numRounds].tokensLeft = IERC20(token).totalSupply();
     }
     
-    // console.log("price: ", oldPrice);
-    // console.log("newPrice: ", newPrice);
-    // console.log("?", newPrice > oldPrice);
-
     emit NewRound(oldPrice, newPrice);
+  }
+
+  function closeOpenOrders(uint256 roundID) private {
+    Round storage round = rounds[roundID];
+    for (uint256 i = 0; i < round.orders.length; i++) {
+      if (round.orders[i].isOpen) {
+        round.orders[i].isOpen = false;
+        IERC20(token).safeTransfer(round.orders[i].account, round.orders[i].amount);
+      }
+    }
   }
 }
