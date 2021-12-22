@@ -14,34 +14,36 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   struct Order {
     address account;
     uint256 amount;
-    uint256 price;
+    uint256 cost;
+    uint256 tokenPrice;
     bool isOpen;
   }
 
   struct Round {
     uint256 createdAt;
     uint256 tradeVolume; // eth
-    uint256 saleVolume; // eth
-    uint256 buyVolume; // eth
+    uint256 tokensSold; // eth
     uint256 tokensLeft;
-    // uint256 tokensToSell;
     uint256 price;
-    // mapping(address => Order) orders;
+    bool isOpen;
+    Order[] orders;
+    // mapping(address => Order[]) orders; // orders by user ?
   }
 
   event UserRegistered(address indexed account, address indexed referrer);
   event Buy(address indexed buyer, address indexed seller, uint256 spent, uint256 price, uint256 amount);
-  event PlacedOrder(address indexed account);
-  event CanceledOrder(address indexed account);
+  event PlacedOrder(uint256 indexed roundID, address indexed account, uint256 amount, uint256 cost);
+  event CanceledOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed account);
+  event BuyOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed buyer, uint256 amount, uint256 cost);
   event NewRound(uint256 oldPrice, uint256 newPrice);
   event RoundCompleted(bool isSaleRound);
 
   uint256 public roundTime = 3 days;
-  uint256 public ratePct = 300; // 3 %
-  uint256 public fixedRate = 0.000004 ether;
+  uint256 public tokenPriceRateEth = 0.000004 ether;
+  uint256 public tokenPriceRatePct = 300;       // 3 %
   uint256 public refLvlOneRate = 500; // 5 %
   uint256 public refLvlTwoRate = 300; // 3 %
-  uint256 public refTradeRate = 250; // 2.5 %
+  uint256 public refTradeRate = 250;  // 2.5 %
   uint256 public numRounds;
   bool public isSaleRound;
   address public token;
@@ -49,7 +51,6 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   mapping(address => uint256) public balances;
   mapping(address => address payable) public referrers; // referral => referrer
   mapping(uint256 => Round) public rounds;
-  // mapping(uint256 => mapping(address => Order)) public orders;
   mapping(uint256 => Order[]) public orders;
 
   constructor(address tokenAddress) {
@@ -103,14 +104,44 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     // Transfer tokens
     IERC20(token).safeTransfer(msg.sender, amount);
     round.tokensLeft -= amount;
+    round.tokensSold += amount;
     round.tradeVolume += totalCost;
-    // Send rewards to referrals
+    // Send rewards to referrers
     payReferrers(msg.sender, totalCost);
     // Transfer excess ETH back to msg.sender
-    payable(msg.sender).transfer(msg.value - totalCost);
+    if (msg.value - totalCost > 0)
+      payable(msg.sender).transfer(msg.value - totalCost);
 
     emit Buy(msg.sender, address(this), amount, round.price, totalCost);
     if (round.tokensLeft == 0) finishRound();
+  }
+
+  function buyOrder(uint256 id, uint256 amount) external payable nonReentrant {
+    require(id >= 0 && id < rounds[numRounds].orders.length, "Incorrect order id");
+    Order storage order = rounds[numRounds].orders[id];
+    require(order.isOpen, "Order already closed");
+    require(amount > 0, "Amount can't be zero");
+    require(amount <= order.amount, "Order doesn't have enough tokens");
+    uint256 totalCost = order.tokenPrice * (amount / 10 ** 18);
+    require(msg.value >= totalCost, "Not enough ETH");
+
+    // Transfer tokens
+    IERC20(token).safeTransfer(msg.sender, amount);
+    order.amount -= amount;
+    rounds[numRounds].tokensLeft -= amount;
+    rounds[numRounds].tokensSold += amount;
+    rounds[numRounds].tradeVolume += totalCost;
+    // Transfer ETH to order owner
+    payable(order.account).transfer(totalCost);
+    // Send rewards to referrers
+    payReferrers(order.account, totalCost);
+    // Transfer excess ETH back to msg.sender
+    if (msg.value - totalCost > 0)
+      payable(msg.sender).transfer(msg.value - totalCost);
+    // Check if order should be closed
+    if (order.amount == 0) _cancelOrder(id);
+
+    emit BuyOrder(numRounds, id, msg.sender, amount, totalCost);
   }
 
   function payReferrers(address account, uint256 sum) private {
@@ -121,36 +152,46 @@ contract Marketplace is AccessControl, ReentrancyGuard {
       ref2.transfer(sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000);
   }
 
-  function placeOrder(uint256 amount, uint256 price) external {
+  function placeOrder(uint256 amount, uint256 cost) external nonReentrant {
     require(!isSaleRound, "Can't place order on sale round");
     require(amount > 0, "Amount can't be zero");
+    require(cost > 0, "Cost can't be zero");
+    // require(balances[msg.sender] >= amount, "Not enough tokens");
 
     IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
-    balances[msg.sender] += amount;
-  
-    orders[numRounds].push(Order({
+    // balances[msg.sender] -= amount;
+
+    rounds[numRounds].orders.push(Order({
       account: msg.sender,
       amount: amount,
-      price: price,
+      cost: cost,
+      tokenPrice: cost / amount,
       isOpen: true
     }));
 
     rounds[numRounds].tokensLeft += amount;
 
-    emit PlacedOrder(msg.sender);
+    emit PlacedOrder(numRounds, msg.sender, amount, cost);
   }
 
-  function getUserOrders(address account) external view returns (Order[] memory orders) {
-    Order[] memory orders;
-    // for (uint i = start; i <= end; i++) {
-    //   Proposal memory p = proposals[i];
-    //   props[i] = p;
-    // }
+  function cancelOrder(uint256 id) external {
+    Order storage order = rounds[numRounds].orders[id];
+    require(msg.sender == order.account, "Not your order");
+    require(order.isOpen, "Already canceled");
+
+    _cancelOrder(id);
   }
 
-  function cancelOrder(uint256 orderID) external {
-    emit CanceledOrder(msg.sender);
+  function _cancelOrder(uint256 id) private {
+    Order storage order = rounds[numRounds].orders[id];
+    order.isOpen = false;
+    rounds[numRounds].tokensLeft -= order.amount;
+
+    // Return unsold tokens to the msg.sender
+    IERC20(token).safeTransfer(order.account, order.amount);
+
+    emit CanceledOrder(numRounds, id, msg.sender);
   }
 
   function finishRound() public {
