@@ -194,6 +194,22 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     emit CanceledOrder(numRounds, id, msg.sender);
   }
 
+  function getCurrentRoundOrders() external view returns (Order[] memory) {
+    return rounds[numRounds].orders;
+  }
+
+  function getOrderData(uint256 roundID, uint256 id) external view returns (Order memory) {
+    return rounds[roundID].orders[id];
+  }
+
+  // function getUserOrders(address account) external view returns (Order[] memory orders) {
+  //   Order[] memory orders;
+  //   // for (uint i = start; i <= end; i++) {
+  //   //   Proposal memory p = proposals[i];
+  //   //   props[i] = p;
+  //   // }
+  // }
+
   function finishRound() public {
     require((rounds[numRounds].createdAt + roundTime) <= block.timestamp, "Need to wait 3 days");
 
