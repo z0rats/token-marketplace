@@ -48,8 +48,8 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   uint256 public refTradeRate = 250;      // 2.5 %
   uint256 public tradeFee = 500;          // 5 %
   uint256 public numRounds;
-  bool public isSaleRound;
   address public token;
+  bool public isSaleRound;
 
   mapping(address => address payable) public referrers; // referral => referrer
   mapping(uint256 => Round) public rounds;
