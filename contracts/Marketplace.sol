@@ -119,6 +119,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   function buyOrder(uint256 id, uint256 amount) external payable nonReentrant {
     require(id >= 0 && id < rounds[numRounds].orders.length, "Incorrect order id");
     Order storage order = rounds[numRounds].orders[id];
+    require(msg.sender != order.account, "Can't buy from yourself");
     require(order.isOpen, "Order already closed");
     require(amount > 0, "Amount can't be zero");
     require(amount <= order.amount, "Order doesn't have enough tokens");

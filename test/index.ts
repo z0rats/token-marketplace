@@ -256,6 +256,13 @@ describe("ACDM Marketplace", function () {
       ).to.be.revertedWith("Not your order");
     });
 
+    it("Should not be able to buy own order", async () => {
+      await mp.placeOrder(tenTokens, oneEth);
+      await expect(
+        mp.buyOrder(firstOrder, tenTokens, oneEthValue)
+      ).to.be.revertedWith("Can't buy from yourself");
+    });
+
     it("Buying order triggers an event", async () => {
       await mp.placeOrder(tenTokens, oneEth);
       const requiredEth = oneEth.div(10);
@@ -326,13 +333,6 @@ describe("ACDM Marketplace", function () {
       const ref1Reward = requiredEth.mul(refTradeRate).div(10000);
       const ref2Reward = requiredEth.mul(refTradeRate).div(10000);
 
-      // Owner should pay 5% to Alice, Market should get 95%
-      await expect(
-        await mp.buyOrder(firstOrder, fiveTokens, { value: requiredEth })
-      ).to.changeEtherBalances(
-        [mp, owner, alice],
-        [requiredEth.sub(ref1Reward), -requiredEth, ref1Reward]
-      );
       // Alice should not pay to anyone, Market should get 100%
       await expect(
         await mp
