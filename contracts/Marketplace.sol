@@ -34,8 +34,10 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   event PlacedOrder(uint256 indexed roundID, address indexed account, uint256 amount, uint256 cost);
   event CanceledOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed account);
   event BuyOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed buyer, uint256 amount, uint256 cost);
-  event NewRound(uint256 oldPrice, uint256 newPrice);
-  event RoundCompleted(bool isSaleRound);
+  event StartedSaleRound(uint256 indexed roundID, uint256 newPrice, uint256 oldPrice, uint256 minted);
+  event FinishedSaleRound(uint256 indexed roundID, uint256 oldPrice, uint256 burned);
+  event StartedTradeRound(uint256 indexed roundID);
+  event FinishedTradeRound(uint256 indexed roundID, uint256 tradeVolume);
 
   uint256 public roundTime = 3 days;
   uint256 public tokenPriceRateEth = 0.000004 ether;
