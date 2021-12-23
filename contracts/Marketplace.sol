@@ -12,10 +12,10 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
   struct Order {
-    address account;
     uint256 amount;
     uint256 cost;
     uint256 tokenPrice;
+    address account;
     bool isOpen;
   }
 
@@ -29,10 +29,9 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   }
 
   event UserRegistered(address indexed account, address indexed referrer);
-  event Buy(address indexed buyer, address indexed seller, uint256 spent, uint256 price, uint256 amount);
   event PlacedOrder(uint256 indexed roundID, address indexed account, uint256 amount, uint256 cost);
   event CanceledOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed account);
-  event BuyOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed buyer, uint256 amount, uint256 cost);
+  event TokenBuy(uint256 indexed roundID, address indexed buyer, address indexed seller, uint256 amount, uint256 price, uint256 cost);
   event StartedSaleRound(uint256 indexed roundID, uint256 newPrice, uint256 oldPrice, uint256 minted);
   event FinishedSaleRound(uint256 indexed roundID, uint256 oldPrice, uint256 burned);
   event StartedTradeRound(uint256 indexed roundID);
@@ -51,6 +50,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   bool public isSaleRound;
 
   mapping(address => address) public referrers; // referral => referrer
+  // mapping(address => address[]) public referrers; // ?
   mapping(uint256 => Round) public rounds;
   mapping(uint256 => Order[]) public orders;
 
@@ -63,7 +63,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   }
 
   function registerUser(address referrer) external {
-    require(referrers[msg.sender] == address(0), "Already has a referrer");
+    require(!hasReferrer(msg.sender), "Already has a referrer");
     require(referrer != msg.sender, "Can't be self-referrer");
     referrers[msg.sender] = referrer;
     emit UserRegistered(msg.sender, referrer);
@@ -131,7 +131,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
       require(sent, "Failed to send Ether");
     }
 
-    emit Buy(msg.sender, address(this), amount, round.price, totalCost);
+    emit TokenBuy(numRounds, msg.sender, address(this), amount, round.price, totalCost);
     if (round.tokensLeft == 0) startTradeRound(round.price, round.tokensLeft);
   }
 
@@ -168,7 +168,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     // Check if order should be closed
     // if (order.amount == 0) _cancelOrder(id);
 
-    emit BuyOrder(numRounds, id, msg.sender, amount, totalCost);
+    emit TokenBuy(numRounds, msg.sender, order.account, amount, order.tokenPrice, totalCost);
   }
 
   function getCurrentRoundData() external view returns (Round memory) {
