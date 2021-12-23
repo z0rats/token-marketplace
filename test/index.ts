@@ -395,6 +395,25 @@ describe("ACDM Marketplace", function () {
         .to.emit(mp, "FinishedTradeRound")
         .withArgs(tradeRoundId, 0);
     });
+
+    it("Should close all order and return tokens at the end of round", async () => {
+      // Place orders
+      await mp.placeOrder(twentyTokens, oneEth);
+      await mp.connect(alice).placeOrder(twentyTokens, oneEth);
+      await mp.connect(bob).placeOrder(twentyTokens, oneEth);
+      // Close ronud
+      await ethers.provider.send("evm_increaseTime", [259200]);
+      await mp.changeRound();
+      // Check orders status
+      const orders = await mp.getPastRoundOrders(tradeRoundId);
+      expect(orders[0].isOpen).to.be.equal(false);
+      expect(orders[1].isOpen).to.be.equal(false);
+      expect(orders[2].isOpen).to.be.equal(false);
+      // Check tokens returned
+      expect(await acdmToken.balanceOf(owner.address)).to.equal(twentyTokens);
+      expect(await acdmToken.balanceOf(alice.address)).to.equal(twentyTokens);
+      expect(await acdmToken.balanceOf(bob.address)).to.be.equal(twentyTokens);
+    });
   });
 
   describe("Referrals", function () {
