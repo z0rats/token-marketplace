@@ -181,8 +181,9 @@ describe("ACDM Marketplace", function () {
     it("Buying shoud emit event", async () => {
       const requiredEth = startPrice.mul(10);
       expect(await mp.buyTokens(tenTokens, { value: requiredEth }))
-        .to.emit(mp, "Buy")
+        .to.emit(mp, "TokenBuy")
         .withArgs(
+          saleRoundId,
           owner.address,
           mp.address,
           tenTokens,
@@ -326,17 +327,19 @@ describe("ACDM Marketplace", function () {
 
     it("Buying order triggers an event", async () => {
       await mp.placeOrder(tenTokens, oneEth);
+      const price = oneEth.div(10);
       expect(
         await mp
           .connect(alice)
           .buyOrder(firstOrder, tenTokens, { value: oneEth })
       )
-        .to.emit(mp, "BuyOrder")
+        .to.emit(mp, "TokenBuy")
         .withArgs(
-          await mp.numRounds(),
-          firstOrder,
+          tradeRoundId,
           alice.address,
+          owner.address,
           tenTokens,
+          price,
           oneEth
         );
     });
