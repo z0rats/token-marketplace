@@ -104,7 +104,6 @@ describe("ACDM Marketplace", function () {
     it("Can get current round data", async () => {
       const round = await mp.getCurrentRoundData();
       expect(round.tradeVolume).to.be.equal(0);
-      expect(round.tokensSold).to.be.equal(0);
       expect(round.tokensLeft).to.be.equal(initSupply);
       expect(round.price).to.be.equal(startPrice);
       expect(round.orders.length).to.be.equal(0);
@@ -113,7 +112,6 @@ describe("ACDM Marketplace", function () {
     it("Can get round data by ID", async () => {
       const round = await mp.getRoundData(saleRoundId);
       expect(round.tradeVolume).to.be.equal(0);
-      expect(round.tokensSold).to.be.equal(0);
       expect(round.tokensLeft).to.be.equal(initSupply);
       expect(round.price).to.be.equal(startPrice);
       expect(round.orders.length).to.be.equal(0);
