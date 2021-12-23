@@ -24,14 +24,16 @@ const ratePct = 300; // 3%
 const refLvlOneRate = 500; // 5%
 const refLvlTwoRate = 300; // 3%
 const refTradeRate = 250; // 2.5 %
+const tradeFee = 500; // 5 %
 const fixedRate = ethers.utils.parseEther("0.000004");
 const oneEthValue = { value: ethers.utils.parseEther("1.0") };
-const oneEth = ethers.constants.One;
+const oneEth = ethers.utils.parseEther("1.0");
 const fiveTokens = ethers.utils.parseUnits("5.0", decimals);
 const tenTokens = ethers.utils.parseUnits("10.0", decimals);
 const twentyTokens = ethers.utils.parseUnits("20.0", decimals);
 const firstOrder = 0;
 const secondOrder = 1;
+const thirdOrder = 2;
 const saleRoundId = 1;
 const tradeRoundId = 2;
 // const exp = ethers.BigNumber.from("10").pow(18);
@@ -195,9 +197,11 @@ describe("ACDM Marketplace", function () {
       const requiredEth = startPrice.mul(20);
       await mp.buyTokens(twentyTokens, { value: requiredEth });
       await mp.connect(alice).buyTokens(twentyTokens, { value: requiredEth });
+      await mp.connect(bob).buyTokens(twentyTokens, { value: requiredEth });
       // Approve tokens to be able to place order
       await acdmToken.approve(mp.address, twentyTokens);
       await acdmToken.connect(alice).approve(mp.address, twentyTokens);
+      await acdmToken.connect(bob).approve(mp.address, twentyTokens);
       // Skip sale round
       await ethers.provider.send("evm_increaseTime", [259200]);
       await mp.finishRound();
@@ -224,7 +228,7 @@ describe("ACDM Marketplace", function () {
 
     it("Should not be able to place order if there are not enough tokens", async () => {
       await expect(
-        mp.connect(bob).placeOrder(twentyTokens, oneEth)
+        mp.placeOrder(twentyTokens.add(twentyTokens), oneEth)
       ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
     });
 
@@ -272,11 +276,10 @@ describe("ACDM Marketplace", function () {
 
     it("Buying order triggers an event", async () => {
       await mp.placeOrder(tenTokens, oneEth);
-      const requiredEth = oneEth.div(10);
       expect(
         await mp
           .connect(alice)
-          .buyOrder(firstOrder, tenTokens, { value: requiredEth })
+          .buyOrder(firstOrder, tenTokens, { value: oneEth })
       )
         .to.emit(mp, "BuyOrder")
         .withArgs(
@@ -284,17 +287,16 @@ describe("ACDM Marketplace", function () {
           firstOrder,
           alice.address,
           tenTokens,
-          requiredEth
+          oneEth
         );
     });
 
     it("Should be able to buy out the order", async () => {
       await mp.placeOrder(twentyTokens, oneEth);
       const aliceInitBalance = await acdmToken.balanceOf(alice.address);
-      const requiredEth = oneEth.div(20);
       await mp
         .connect(alice)
-        .buyOrder(firstOrder, twentyTokens, { value: requiredEth });
+        .buyOrder(firstOrder, twentyTokens, { value: oneEth });
       const newAliceBalance = await acdmToken.balanceOf(alice.address);
       // Check token balance changed
       expect(newAliceBalance).to.be.equal(aliceInitBalance.add(twentyTokens));
@@ -307,10 +309,9 @@ describe("ACDM Marketplace", function () {
     it("Should be able to buy part of the order", async () => {
       await mp.placeOrder(twentyTokens, oneEth);
       const aliceInitBalance = await acdmToken.balanceOf(alice.address);
-      const requiredEth = oneEth.div(10);
       await mp
         .connect(alice)
-        .buyOrder(firstOrder, tenTokens, { value: requiredEth });
+        .buyOrder(firstOrder, tenTokens, { value: oneEth });
       const newAliceBalance = await acdmToken.balanceOf(alice.address);
       // Check token balance changed
       expect(newAliceBalance).to.be.equal(aliceInitBalance.add(tenTokens));
@@ -335,26 +336,46 @@ describe("ACDM Marketplace", function () {
       await mp.connect(bob).registerUser(owner.address);
       // Place 20 tokens in order
       await mp.placeOrder(twentyTokens, oneEth);
-      // Calc 5 tokens price & referrers rewards
-      const requiredEth = oneEth.div(5);
-      const ref1Reward = requiredEth.mul(refTradeRate).div(10000);
-      const ref2Reward = requiredEth.mul(refTradeRate).div(10000);
+      await mp.connect(alice).placeOrder(twentyTokens, oneEth);
+      await mp.connect(bob).placeOrder(twentyTokens, oneEth);
+      // Calc 5 tokens price (1/4 of total cost) & referrers rewards
+      const requiredEth = oneEth.div(4);
+      const refTradeReward = requiredEth.mul(refTradeRate).div(10000);
 
-      // Alice should not pay to anyone, Market should get 100%
-      await expect(
-        await mp
-          .connect(alice)
-          .buyOrder(firstOrder, fiveTokens, { value: requiredEth })
-      ).to.changeEtherBalances([alice, mp], [-requiredEth, requiredEth]);
-
-      // Bob should pay 5% to Owner and 3% to Alice, Market should get 92%
+      // Owner should get 95%, Alice & Market should get 2.5%
       await expect(
         await mp
           .connect(bob)
           .buyOrder(firstOrder, fiveTokens, { value: requiredEth })
       ).to.changeEtherBalances(
-        [mp, owner, alice],
-        [requiredEth.sub(ref1Reward).sub(ref2Reward), ref1Reward, ref2Reward]
+        [owner, alice, mp],
+        [
+          requiredEth.sub(refTradeReward).sub(refTradeReward),
+          refTradeReward,
+          refTradeReward,
+        ]
+      );
+      // Alice should get 95%, Market should get 5%
+      await expect(
+        await mp.buyOrder(secondOrder, fiveTokens, { value: requiredEth })
+      ).to.changeEtherBalances(
+        [alice, mp],
+        [
+          requiredEth.sub(refTradeReward).sub(refTradeReward),
+          refTradeReward.add(refTradeReward),
+        ]
+      );
+      // Bob should get 95%, Alice and Owner should get 2.5%
+      // CHECK OWNER BALANCE
+      await expect(
+        await mp.buyOrder(thirdOrder, fiveTokens, { value: requiredEth })
+      ).to.changeEtherBalances(
+        [bob, alice],
+        [
+          requiredEth.sub(refTradeReward).sub(refTradeReward),
+          refTradeReward,
+          // requiredEth.sub(refTradeReward),
+        ]
       );
     });
   });
