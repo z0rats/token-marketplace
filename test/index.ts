@@ -100,6 +100,48 @@ describe("ACDM Marketplace", function () {
     });
   });
 
+  describe("Getters", function () {
+    it("Can get current round data", async () => {
+      const round = await mp.getCurrentRoundData();
+      expect(round.tradeVolume).to.be.equal(0);
+      expect(round.tokensSold).to.be.equal(0);
+      expect(round.tokensLeft).to.be.equal(initSupply);
+      expect(round.price).to.be.equal(startPrice);
+      expect(round.orders.length).to.be.equal(0);
+    });
+
+    it("Can get round data by ID", async () => {
+      const round = await mp.getRoundData(saleRoundId);
+      expect(round.tradeVolume).to.be.equal(0);
+      expect(round.tokensSold).to.be.equal(0);
+      expect(round.tokensLeft).to.be.equal(initSupply);
+      expect(round.price).to.be.equal(startPrice);
+      expect(round.orders.length).to.be.equal(0);
+    });
+
+    it("Can check if user have a referrer", async () => {
+      await mp.registerUser(alice.address);
+      await mp.connect(bob).registerUser(owner.address);
+      expect(await mp.hasReferrer(owner.address)).to.be.equal(true);
+      expect(await mp.hasReferrer(alice.address)).to.be.equal(false);
+      expect(await mp.hasReferrer(bob.address)).to.be.equal(true);
+    });
+
+    it("Can get user referrers", async () => {
+      await mp.registerUser(alice.address);
+      await mp.connect(bob).registerUser(owner.address);
+      const ownerRefs = await mp.getUserReferrers(owner.address);
+      const aliceRefs = await mp.getUserReferrers(alice.address);
+      const bobRefs = await mp.getUserReferrers(bob.address);
+      expect(ownerRefs[0]).to.be.equal(alice.address);
+      expect(ownerRefs[1]).to.be.equal(ethers.constants.AddressZero);
+      expect(aliceRefs[0]).to.be.equal(ethers.constants.AddressZero);
+      expect(aliceRefs[1]).to.be.equal(ethers.constants.AddressZero);
+      expect(bobRefs[0]).to.be.equal(owner.address);
+      expect(bobRefs[1]).to.be.equal(alice.address);
+    });
+  });
+
   describe("Sale round", function () {
     it("Should be able to buy tokens on sale round", async () => {
       await mp.buyTokens(tenTokens, oneEthValue);
