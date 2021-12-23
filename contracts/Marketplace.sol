@@ -38,13 +38,14 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   event FinishedTradeRound(uint256 indexed roundID, uint256 tradeVolume);
 
   uint256 public constant START_PRICE = 0.00001 ether;
+  uint256 public constant PRICE_RATE_ETH = 0.000004 ether;
+  uint256 public constant PRICE_RATE_PCT = 300;   // 3 %
+  uint256 public constant TRADE_FEE = 500;        // 5 %
+  uint256 public constant REF_LVL_ONE_RATE = 500; // 5 %
+  uint256 public constant REF_LVL_TWO_RATE = 300; // 3 %
+  uint256 public constant REF_TRADE_RATE = 250;   // 2.5 %  
+
   uint256 public roundTime = 3 days;
-  uint256 public tokenPriceRateEth = 0.000004 ether;
-  uint256 public tokenPriceRatePct = 300; // 3 %
-  uint256 public refLvlOneRate = 500;     // 5 %
-  uint256 public refLvlTwoRate = 300;     // 3 %
-  uint256 public refTradeRate = 250;      // 2.5 %
-  uint256 public tradeFee = 500;          // 5 %
   uint256 public numRounds;
   address public token;
   bool public isSaleRound;
@@ -127,8 +128,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
 
     // Transfer excess ETH back to msg.sender
     if (msg.value - totalCost > 0) {
-      (bool sent,) = msg.sender.call{value: msg.value - totalCost}("");
-      require(sent, "Failed to send Ether");
+      sendEther(msg.sender, msg.value - totalCost);
     }
 
     emit TokenBuy(numRounds, msg.sender, address(this), amount, round.price, totalCost);
@@ -154,16 +154,14 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     round.tradeVolume += totalCost;
 
     // Transfer 95% ETH to order owner
-    (bool sent,) = order.account.call{value: totalCost - (totalCost * tradeFee / 10000)}("");
-    require(sent, "Failed to send Ether");
+    sendEther(order.account, totalCost - (totalCost * TRADE_FEE / 10000));
 
     // Send rewards to referrers
     if (hasReferrer(order.account)) payReferrers(order.account, totalCost);
 
     // Transfer excess ETH back to msg.sender
     if (msg.value - totalCost > 0) {
-      (bool sent,) = msg.sender.call{value: msg.value - totalCost}("");
-      require(sent, "Failed to send Ether");
+      sendEther(msg.sender, msg.value - totalCost);
     }
     // Check if order should be closed
     // if (order.amount == 0) _cancelOrder(id);
@@ -207,15 +205,18 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     return referrers[account] != address(0);
   }
 
+  function sendEther(address account, uint256 amount) private {
+    (bool sent,) = account.call{value: amount}("");
+    require(sent, "Failed to send Ether");
+  }
+
   function payReferrers(address account, uint256 sum) private {
     (address ref1, address ref2) = getUserReferrers(account);
     // Reward ref 1
-    (bool sent,) = ref1.call{value: (sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000)}("");
-    require(sent, "Failed to send Ether");
+    sendEther(ref1, sum * (isSaleRound ? REF_LVL_ONE_RATE : REF_TRADE_RATE) / 10000);
     // Reward ref 2 (if exists)
     if (ref2 != address(0)) {
-      (bool sent,) = ref2.call{value: (sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000)}("");
-      require(sent, "Failed to send Ether");
+      sendEther(ref2, sum * (isSaleRound ? REF_LVL_TWO_RATE : REF_TRADE_RATE) / 10000);
     }
   }
 
@@ -234,7 +235,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     // Closing orders
     closeOpenOrders(numRounds);
     // Calc new price
-    uint256 newPrice = oldPrice + (oldPrice * tokenPriceRatePct / 10000) + tokenPriceRateEth;
+    uint256 newPrice = oldPrice + (oldPrice * PRICE_RATE_PCT / 10000) + PRICE_RATE_ETH;
     
     numRounds++;
     Round storage newRound = rounds[numRounds];
