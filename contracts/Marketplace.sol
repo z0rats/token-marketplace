@@ -189,6 +189,10 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     return rounds[numRounds].orders;
   }
 
+  function getPastRoundOrders(uint256 roundID) external view returns (Order[] memory) {
+    return rounds[roundID].orders;
+  }
+
   function getOrderData(uint256 roundID, uint256 id) external view returns (Order memory) {
     return rounds[roundID].orders[id];
   }
