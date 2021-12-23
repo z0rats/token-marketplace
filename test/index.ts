@@ -263,6 +263,13 @@ describe("ACDM Marketplace", function () {
       ).to.be.revertedWith("Can't buy from yourself");
     });
 
+    it("Should not be able to buy with insufficient ether", async () => {
+      await mp.placeOrder(tenTokens, oneEth);
+      await expect(
+        mp.connect(alice).buyOrder(firstOrder, tenTokens)
+      ).to.be.revertedWith("Not enough ETH");
+    });
+
     it("Buying order triggers an event", async () => {
       await mp.placeOrder(tenTokens, oneEth);
       const requiredEth = oneEth.div(10);
