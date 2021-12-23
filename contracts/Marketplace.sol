@@ -63,14 +63,6 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     startSaleRound(0, 1 ether);
   }
 
-  function getCurrentRoundData() public view returns (Round memory) {
-    return rounds[numRounds];
-  }
-
-  function getRoundData(uint256 id) public view returns (Round memory) {
-    return rounds[id];
-  }
-
   function registerUser(address refferer) external {
     require(referrers[msg.sender] == address(0), "Already has a referrer");
     require(refferer != msg.sender, "Can't be self-referrer");
@@ -78,8 +70,39 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     emit UserRegistered(msg.sender, refferer);
   }
 
-  function getUserReferrers(address account) public view returns (address payable, address payable) {
-    return (referrers[account], referrers[referrers[account]]);
+  function placeOrder(uint256 amount, uint256 cost) external {
+    require(!isSaleRound, "Can't place order on sale round");
+    require(amount > 0, "Amount can't be zero");
+    require(cost > 0, "Cost can't be zero");
+
+    IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+
+    rounds[numRounds].orders.push(Order({
+      account: msg.sender,
+      amount: amount,
+      cost: cost,
+      tokenPrice: cost / (amount / 10 ** 18),
+      isOpen: true
+    }));
+
+    rounds[numRounds].tokensLeft += amount;
+
+    emit PlacedOrder(numRounds, msg.sender, amount, cost);
+  }
+
+  function cancelOrder(uint256 id) external {
+    Order storage order = rounds[numRounds].orders[id];
+    require(msg.sender == order.account, "Not your order");
+    require(order.isOpen, "Already canceled");
+
+    _cancelOrder(id);
+  }
+
+  function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    require((rounds[numRounds].createdAt + roundTime) <= block.timestamp, "Need to wait 3 days");
+
+    isSaleRound ? startTradeRound(rounds[numRounds].price, rounds[numRounds].tokensLeft)
+      : startSaleRound(rounds[numRounds].price, rounds[numRounds].tradeVolume);
   }
 
   function buyTokens(uint256 amount) external payable nonReentrant {
@@ -94,6 +117,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     
     // Transfer tokens
     IERC20(token).safeTransfer(msg.sender, amount);
+
     round.tokensLeft -= amount;
     round.tokensSold += amount;
     round.tradeVolume += totalCost;
@@ -148,59 +172,12 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     emit BuyOrder(numRounds, id, msg.sender, amount, totalCost);
   }
 
-  function payReferrers(address account, uint256 sum) private {
-    (address payable ref1, address payable ref2) = getUserReferrers(account);
-    // Reward ref 1
-    (bool sent,) = ref1.call{value: (sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000)}("");
-    require(sent, "Failed to send Ether");
-    // Reward ref 2 (if exists)
-    if (ref2 != address(0)) {
-      (bool sent,) = ref2.call{value: (sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000)}("");
-      require(sent, "Failed to send Ether");
-    }
+  function getCurrentRoundData() external view returns (Round memory) {
+    return rounds[numRounds];
   }
 
-  function placeOrder(uint256 amount, uint256 cost) external nonReentrant {
-    require(!isSaleRound, "Can't place order on sale round");
-    require(amount > 0, "Amount can't be zero");
-    require(cost > 0, "Cost can't be zero");
-
-    IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-
-    rounds[numRounds].orders.push(Order({
-      account: msg.sender,
-      amount: amount,
-      cost: cost,
-      tokenPrice: cost / (amount / 10 ** 18),
-      isOpen: true
-    }));
-
-    rounds[numRounds].tokensLeft += amount;
-
-    emit PlacedOrder(numRounds, msg.sender, amount, cost);
-  }
-
-  function hasReferrer(address account) public view returns (bool) {
-    return referrers[account] != address(0);
-  }
-
-  function cancelOrder(uint256 id) external {
-    Order storage order = rounds[numRounds].orders[id];
-    require(msg.sender == order.account, "Not your order");
-    require(order.isOpen, "Already canceled");
-
-    _cancelOrder(id);
-  }
-
-  function _cancelOrder(uint256 id) private {
-    Order storage order = rounds[numRounds].orders[id];
-    order.isOpen = false;
-    rounds[numRounds].tokensLeft -= order.amount;
-
-    // Return unsold tokens to the msg.sender
-    IERC20(token).safeTransfer(order.account, order.amount);
-
-    emit CanceledOrder(numRounds, id, msg.sender);
+  function getRoundData(uint256 id) external view returns (Round memory) {
+    return rounds[id];
   }
 
   function getCurrentRoundOrders() external view returns (Order[] memory) {
@@ -223,11 +200,35 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   //   // }
   // }
 
-  function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) {
-    require((rounds[numRounds].createdAt + roundTime) <= block.timestamp, "Need to wait 3 days");
+  function getUserReferrers(address account) public view returns (address payable, address payable) {
+    return (referrers[account], referrers[referrers[account]]);
+  }
 
-    isSaleRound ? startTradeRound(rounds[numRounds].price, rounds[numRounds].tokensLeft)
-      : startSaleRound(rounds[numRounds].price, rounds[numRounds].tradeVolume);
+  function hasReferrer(address account) public view returns (bool) {
+    return referrers[account] != address(0);
+  }
+
+  function payReferrers(address account, uint256 sum) private {
+    (address payable ref1, address payable ref2) = getUserReferrers(account);
+    // Reward ref 1
+    (bool sent,) = ref1.call{value: (sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000)}("");
+    require(sent, "Failed to send Ether");
+    // Reward ref 2 (if exists)
+    if (ref2 != address(0)) {
+      (bool sent,) = ref2.call{value: (sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000)}("");
+      require(sent, "Failed to send Ether");
+    }
+  }
+
+  function _cancelOrder(uint256 id) private {
+    Order storage order = rounds[numRounds].orders[id];
+    order.isOpen = false;
+    rounds[numRounds].tokensLeft -= order.amount;
+
+    // Return unsold tokens to the msg.sender
+    IERC20(token).safeTransfer(order.account, order.amount);
+
+    emit CanceledOrder(numRounds, id, msg.sender);
   }
 
   function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private {
