@@ -12,10 +12,10 @@ const initSupply = ethers.utils.parseUnits("100000.0", decimals);
 // AccessControl roles in bytes32 string
 // DEFAULT_ADMIN_ROLE, MINTER_ROLE, BURNER_ROLE
 const adminRole = ethers.constants.HashZero;
-// const minterRole =
-//   "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6";
-// const burnerRole =
-//   "0x51f4231475d91734c657e212cfb2e9728a863d53c9057d6ce6ca203d6e5cfd5d";
+const minterRole =
+  "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6";
+const burnerRole =
+  "0x51f4231475d91734c657e212cfb2e9728a863d53c9057d6ce6ca203d6e5cfd5d";
 
 // Sample data
 const roundTime = 259200; // 3 days in seconds
@@ -61,12 +61,12 @@ describe("ACDM Marketplace", function () {
     await acdmToken.deployed();
 
     // Deploy Marketplace contract
-    mp = await Marketplace.deploy(acdmToken.address);
+    mp = await Marketplace.deploy(acdmToken.address, roundTime);
     await mp.deployed();
 
-    // Grants token DEFAULT_ADMIN_ROLE to Marketplace and revoke from token owner
-    await acdmToken.initialize(mp.address, initSupply);
-    await mp.openMarketplace(roundTime, startPrice);
+    // Grant Minter & Burner role to Marketplace
+    await acdmToken.grantRole(minterRole, mp.address);
+    await acdmToken.grantRole(burnerRole, mp.address);
   });
 
   describe("Deployment", function () {
@@ -74,24 +74,29 @@ describe("ACDM Marketplace", function () {
       expect(await mp.token()).to.be.equal(acdmToken.address);
     });
 
+    it("Should set right Marketplace owner", async () => {
+      expect(await mp.hasRole(adminRole, owner.address)).to.equal(true);
+    });
+
+    it("Should set right Token owner", async () => {
+      expect(await acdmToken.hasRole(adminRole, owner.address)).to.equal(true);
+    });
+
     it("Should set right round time", async () => {
-      // 3 days in seconds
       expect(await mp.roundTime()).to.be.equal(roundTime);
     });
 
-    it("Should mint 100_000.0 tokens", async () => {
-      expect(await acdmToken.balanceOf(mp.address)).to.be.equal(initSupply);
+    it("Should set minter & burner role to marketplace", async () => {
+      expect(await acdmToken.hasRole(minterRole, mp.address)).to.equal(true);
+      expect(await acdmToken.hasRole(burnerRole, mp.address)).to.equal(true);
     });
 
     it("Should start sale round with correct params", async () => {
+      expect(await acdmToken.balanceOf(mp.address)).to.be.equal(initSupply);
       const round = await mp.getCurrentRoundData();
       expect(await mp.isSaleRound()).to.be.equal(true);
       expect(round.price).to.be.equal(startPrice);
       expect(round.tokensLeft).to.be.equal(initSupply);
-    });
-
-    it("Marketplace contract should be the admin of the token", async () => {
-      expect(await acdmToken.hasRole(adminRole, mp.address)).to.equal(true);
     });
   });
 
@@ -171,17 +176,14 @@ describe("ACDM Marketplace", function () {
     });
 
     it("Should not be able to finish round before 3 days", async () => {
-      await expect(mp.finishRound()).to.be.revertedWith("Need to wait 3 days");
+      await expect(mp.changeRound()).to.be.revertedWith("Need to wait 3 days");
     });
 
     it("Should be able to finish round after 3 days", async () => {
       await ethers.provider.send("evm_increaseTime", [259200]);
-      const newPrice = startPrice
-        .add(startPrice.mul(ratePct).div(10000))
-        .add(fixedRate);
-      expect(await mp.finishRound())
-        .to.emit(mp, "NewRound")
-        .withArgs(startPrice, newPrice);
+      expect(await mp.changeRound())
+        .to.emit(mp, "FinishedSaleRound")
+        .withArgs(saleRoundId, startPrice, initSupply);
     });
 
     it("Should not be able to place order on sale round", async () => {
@@ -202,9 +204,17 @@ describe("ACDM Marketplace", function () {
       await acdmToken.approve(mp.address, twentyTokens);
       await acdmToken.connect(alice).approve(mp.address, twentyTokens);
       await acdmToken.connect(bob).approve(mp.address, twentyTokens);
-      // Skip sale round
+      // Starting trade round
       await ethers.provider.send("evm_increaseTime", [259200]);
-      await mp.finishRound();
+      await mp.changeRound();
+    });
+
+    it("Should start trade round with correct params", async () => {
+      const round = await mp.getCurrentRoundData();
+      expect(await mp.isSaleRound()).to.be.equal(false);
+      expect(round.price).to.be.equal(startPrice);
+      expect(round.tradeVolume).to.be.equal(0);
+      expect(round.tokensLeft).to.be.equal(0);
     });
 
     it("Should be able to place order", async () => {
@@ -377,6 +387,13 @@ describe("ACDM Marketplace", function () {
           // requiredEth.sub(refTradeReward),
         ]
       );
+    });
+
+    it("Should be able to finish round after 3 days", async () => {
+      await ethers.provider.send("evm_increaseTime", [259200]);
+      expect(await mp.changeRound())
+        .to.emit(mp, "FinishedTradeRound")
+        .withArgs(tradeRoundId, 0);
     });
   });
 
