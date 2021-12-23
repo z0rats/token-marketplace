@@ -4,9 +4,9 @@ pragma solidity ^0.8.10;
 
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./utils/structs/EnumerableMap.sol";
+import "./token/ERC20/SafeERC20.sol";
+import "./access/AccessControl.sol";
 
 contract Marketplace is AccessControl, ReentrancyGuard {
   using SafeERC20 for IERC20;
@@ -59,6 +59,8 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     token = _token;
     roundTime = _roundTime;
+
+    startSaleRound(0, 1 ether);
   }
 
   function getCurrentRoundData() public view returns (Round memory) {
@@ -102,7 +104,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
       payable(msg.sender).transfer(msg.value - totalCost);
 
     emit Buy(msg.sender, address(this), amount, round.price, totalCost);
-    if (round.tokensLeft == 0) finishRound();
+    if (round.tokensLeft == 0) startTradeRound(round.price, round.tokensLeft);
   }
 
   function buyOrder(uint256 id, uint256 amount) external payable nonReentrant {
@@ -199,31 +201,45 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   //   // }
   // }
 
-  function finishRound() public {
+  function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) {
     require((rounds[numRounds].createdAt + roundTime) <= block.timestamp, "Need to wait 3 days");
 
-    changeRound(rounds[numRounds].price);
+    isSaleRound ? startTradeRound(rounds[numRounds].price, rounds[numRounds].tokensLeft)
+      : startSaleRound(rounds[numRounds].price, rounds[numRounds].tradeVolume);
   }
 
-  function changeRound(uint256 oldPrice) private {
+  function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private {
+    // Closing orders
+    closeOpenOrders(numRounds);
+    // Calc new price
     uint256 newPrice = oldPrice + (oldPrice * tokenPriceRatePct / 10000) + tokenPriceRateEth;
-
+    
     numRounds++;
     rounds[numRounds].createdAt = block.timestamp;
-    rounds[numRounds].price = newPrice;
+    rounds[numRounds].price = numRounds == 1 ? START_PRICE : newPrice;
 
-    if (isSaleRound) {
-      isSaleRound = false;
-      // burn unsold tokens
-    } else {
-      isSaleRound = true;
-      closeOpenOrders(numRounds - 1);
-      // mint tokens
-      // uint256 amount = rounds[numRounds - 1].tradeVolume / oldPrice;
-      // rounds[numRounds].tokensLeft = IERC20(token).totalSupply();
-    }
-    
-    emit NewRound(oldPrice, newPrice);
+    uint256 mintAmount = tradeVolume * (10 ** 18) / (numRounds == 1 ? START_PRICE : newPrice);
+    IERC20(token)._mint(address(this), mintAmount);
+
+    rounds[numRounds].tokensLeft = mintAmount;
+
+    isSaleRound = true;
+
+    emit FinishedTradeRound(numRounds - 1, tradeVolume);
+    emit StartedSaleRound(numRounds, newPrice, oldPrice, mintAmount);
+  }
+
+  function startTradeRound(uint256 oldPrice, uint256 tokensLeft) private {
+    // Burn unsold tokens
+    if (tokensLeft > 0) IERC20(token)._burn(address(this), tokensLeft);
+  
+    numRounds++;
+    rounds[numRounds].createdAt = block.timestamp;
+    rounds[numRounds].price = oldPrice;
+
+    isSaleRound = false;
+    emit FinishedSaleRound(numRounds - 1, oldPrice, tokensLeft);
+    emit StartedTradeRound(numRounds);
   }
 
   function closeOpenOrders(uint256 roundID) private {
