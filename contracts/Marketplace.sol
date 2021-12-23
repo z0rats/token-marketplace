@@ -139,7 +139,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     if (msg.value - totalCost > 0)
       payable(msg.sender).transfer(msg.value - totalCost);
     // Check if order should be closed
-    if (order.amount == 0) _cancelOrder(id);
+    // if (order.amount == 0) _cancelOrder(id);
 
     emit BuyOrder(numRounds, id, msg.sender, amount, totalCost);
   }
