@@ -62,11 +62,11 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     startSaleRound(0, 1 ether);
   }
 
-  function registerUser(address refferer) external {
+  function registerUser(address referrer) external {
     require(referrers[msg.sender] == address(0), "Already has a referrer");
-    require(refferer != msg.sender, "Can't be self-referrer");
-    referrers[msg.sender] = refferer;
-    emit UserRegistered(msg.sender, refferer);
+    require(referrer != msg.sender, "Can't be self-referrer");
+    referrers[msg.sender] = referrer;
+    emit UserRegistered(msg.sender, referrer);
   }
 
   function placeOrder(uint256 amount, uint256 cost) external {
