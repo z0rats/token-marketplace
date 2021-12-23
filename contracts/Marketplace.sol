@@ -25,7 +25,6 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     uint256 tokensSold; // eth
     uint256 tokensLeft;
     uint256 price;
-    bool isOpen;
     Order[] orders;
     // mapping(address => Order[]) orders; // orders by user ?
   }
@@ -48,7 +47,6 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   bool public isSaleRound;
   address public token;
 
-  mapping(address => uint256) public balances;
   mapping(address => address payable) public referrers; // referral => referrer
   mapping(uint256 => Round) public rounds;
   mapping(uint256 => Order[]) public orders;
@@ -157,11 +155,8 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     require(!isSaleRound, "Can't place order on sale round");
     require(amount > 0, "Amount can't be zero");
     require(cost > 0, "Cost can't be zero");
-    // require(balances[msg.sender] >= amount, "Not enough tokens");
 
     IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-
-    // balances[msg.sender] -= amount;
 
     rounds[numRounds].orders.push(Order({
       account: msg.sender,
@@ -223,7 +218,6 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     numRounds++;
     rounds[numRounds].createdAt = block.timestamp;
     rounds[numRounds].price = newPrice;
-    rounds[numRounds].isOpen = false;
 
     if (isSaleRound) {
       isSaleRound = false;
