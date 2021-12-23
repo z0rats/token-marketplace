@@ -131,8 +131,8 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     rounds[numRounds].tokensLeft -= amount;
     rounds[numRounds].tokensSold += amount;
     rounds[numRounds].tradeVolume += totalCost;
-    // Transfer ETH to order owner
-    payable(order.account).transfer(totalCost);
+    // Transfer 95% ETH to order owner
+    payable(order.account).transfer(totalCost - (totalCost * tradeFee / 10000));
     // Send rewards to referrers
     if (hasReferrer(order.account)) payReferrers(order.account, totalCost);
     // Transfer excess ETH back to msg.sender
@@ -161,7 +161,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
       account: msg.sender,
       amount: amount,
       cost: cost,
-      tokenPrice: cost / amount,
+      tokenPrice: cost / (amount / 10 ** 18),
       isOpen: true
     }));
 
