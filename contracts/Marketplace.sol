@@ -39,6 +39,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   event StartedTradeRound(uint256 indexed roundID);
   event FinishedTradeRound(uint256 indexed roundID, uint256 tradeVolume);
 
+  uint256 public constant START_PRICE = 0.00001 ether;
   uint256 public roundTime = 3 days;
   uint256 public tokenPriceRateEth = 0.000004 ether;
   uint256 public tokenPriceRatePct = 300;       // 3 %
