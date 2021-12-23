@@ -22,7 +22,6 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   struct Round {
     uint256 createdAt;
     uint256 tradeVolume; // eth
-    uint256 tokensSold;  // eth
     uint256 tokensLeft;
     uint256 price;
     Order[] orders;
@@ -51,7 +50,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   address public token;
   bool public isSaleRound;
 
-  mapping(address => address payable) public referrers; // referral => referrer
+  mapping(address => address) public referrers; // referral => referrer
   mapping(uint256 => Round) public rounds;
   mapping(uint256 => Order[]) public orders;
 
@@ -66,7 +65,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   function registerUser(address refferer) external {
     require(referrers[msg.sender] == address(0), "Already has a referrer");
     require(refferer != msg.sender, "Can't be self-referrer");
-    referrers[msg.sender] = payable(refferer);
+    referrers[msg.sender] = refferer;
     emit UserRegistered(msg.sender, refferer);
   }
 
@@ -77,15 +76,17 @@ contract Marketplace is AccessControl, ReentrancyGuard {
 
     IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
-    rounds[numRounds].orders.push(Order({
+    uint256 tokenPrice = cost / (amount / 10 ** 18);
+    Round storage round = rounds[numRounds];
+    round.orders.push(Order({
       account: msg.sender,
       amount: amount,
       cost: cost,
-      tokenPrice: cost / (amount / 10 ** 18),
+      tokenPrice: tokenPrice,
       isOpen: true
     }));
 
-    rounds[numRounds].tokensLeft += amount;
+    round.tokensLeft += amount;
 
     emit PlacedOrder(numRounds, msg.sender, amount, cost);
   }
@@ -119,7 +120,6 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     IERC20(token).safeTransfer(msg.sender, amount);
 
     round.tokensLeft -= amount;
-    round.tokensSold += amount;
     round.tradeVolume += totalCost;
 
     // Send rewards to referrers
@@ -127,7 +127,6 @@ contract Marketplace is AccessControl, ReentrancyGuard {
 
     // Transfer excess ETH back to msg.sender
     if (msg.value - totalCost > 0) {
-      // payable(msg.sender).transfer(msg.value - totalCost);
       (bool sent,) = msg.sender.call{value: msg.value - totalCost}("");
       require(sent, "Failed to send Ether");
     }
@@ -137,8 +136,9 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   }
 
   function buyOrder(uint256 id, uint256 amount) external payable nonReentrant {
-    require(id >= 0 && id < rounds[numRounds].orders.length, "Incorrect order id");
-    Order storage order = rounds[numRounds].orders[id];
+    Round storage round = rounds[numRounds];
+    require(id >= 0 && id < round.orders.length, "Incorrect order id");
+    Order storage order = round.orders[id];
     require(msg.sender != order.account, "Can't buy from yourself");
     require(order.isOpen, "Order already closed");
     require(amount > 0, "Amount can't be zero");
@@ -150,9 +150,8 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     IERC20(token).safeTransfer(msg.sender, amount);
 
     order.amount -= amount;
-    rounds[numRounds].tokensLeft -= amount;
-    rounds[numRounds].tokensSold += amount;
-    rounds[numRounds].tradeVolume += totalCost;
+    round.tokensLeft -= amount;
+    round.tradeVolume += totalCost;
 
     // Transfer 95% ETH to order owner
     (bool sent,) = order.account.call{value: totalCost - (totalCost * tradeFee / 10000)}("");
@@ -200,7 +199,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   //   // }
   // }
 
-  function getUserReferrers(address account) public view returns (address payable, address payable) {
+  function getUserReferrers(address account) public view returns (address, address) {
     return (referrers[account], referrers[referrers[account]]);
   }
 
@@ -209,7 +208,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   }
 
   function payReferrers(address account, uint256 sum) private {
-    (address payable ref1, address payable ref2) = getUserReferrers(account);
+    (address ref1, address ref2) = getUserReferrers(account);
     // Reward ref 1
     (bool sent,) = ref1.call{value: (sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000)}("");
     require(sent, "Failed to send Ether");
@@ -238,13 +237,14 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     uint256 newPrice = oldPrice + (oldPrice * tokenPriceRatePct / 10000) + tokenPriceRateEth;
     
     numRounds++;
-    rounds[numRounds].createdAt = block.timestamp;
-    rounds[numRounds].price = numRounds == 1 ? START_PRICE : newPrice;
+    Round storage newRound = rounds[numRounds];
+    newRound.createdAt = block.timestamp;
+    newRound.price = numRounds == 1 ? START_PRICE : newPrice;
 
     uint256 mintAmount = tradeVolume * (10 ** 18) / (numRounds == 1 ? START_PRICE : newPrice);
     IERC20(token)._mint(address(this), mintAmount);
 
-    rounds[numRounds].tokensLeft = mintAmount;
+    newRound.tokensLeft = mintAmount;
 
     isSaleRound = true;
 
@@ -257,8 +257,9 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     if (tokensLeft > 0) IERC20(token)._burn(address(this), tokensLeft);
   
     numRounds++;
-    rounds[numRounds].createdAt = block.timestamp;
-    rounds[numRounds].price = oldPrice;
+    Round storage newRound = rounds[numRounds];
+    newRound.createdAt = block.timestamp;
+    newRound.price = oldPrice;
 
     isSaleRound = false;
     emit FinishedSaleRound(numRounds - 1, oldPrice, tokensLeft);
