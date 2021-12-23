@@ -84,7 +84,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     require(isSaleRound, "Can't buy in trade round");
     require(amount > 0, "Amount can't be zero");
     // Check that user send enough ether
-    Round memory round = getCurrentRoundData();
+    Round storage round = rounds[numRounds];
     uint256 totalCost = round.price * (amount / 10 ** 18);
     require(msg.value >= totalCost, "Not enough ETH");
 
