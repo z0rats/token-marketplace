@@ -43,6 +43,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   uint256 public refLvlOneRate = 500; // 5 %
   uint256 public refLvlTwoRate = 300; // 3 %
   uint256 public refTradeRate = 250;  // 2.5 %
+  uint256 public tradeFee = 500;  // 5 %
   uint256 public numRounds;
   bool public isSaleRound;
   address public token;
@@ -105,7 +106,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     round.tokensSold += amount;
     round.tradeVolume += totalCost;
     // Send rewards to referrers
-    payReferrers(msg.sender, totalCost);
+    if (hasReferrer(msg.sender)) payReferrers(msg.sender, totalCost);
     // Transfer excess ETH back to msg.sender
     if (msg.value - totalCost > 0)
       payable(msg.sender).transfer(msg.value - totalCost);
@@ -133,7 +134,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     // Transfer ETH to order owner
     payable(order.account).transfer(totalCost);
     // Send rewards to referrers
-    payReferrers(order.account, totalCost);
+    if (hasReferrer(order.account)) payReferrers(order.account, totalCost);
     // Transfer excess ETH back to msg.sender
     if (msg.value - totalCost > 0)
       payable(msg.sender).transfer(msg.value - totalCost);
@@ -145,10 +146,8 @@ contract Marketplace is AccessControl, ReentrancyGuard {
 
   function payReferrers(address account, uint256 sum) private {
     (address payable ref1, address payable ref2) = getUserRefs(account);
-    if (ref1 != address(0)) 
-      ref1.transfer(sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000);
-    if (ref2 != address(0)) 
-      ref2.transfer(sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000);
+    ref1.transfer(sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000);
+    if (ref2 != address(0)) ref2.transfer(sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000);
   }
 
   function placeOrder(uint256 amount, uint256 cost) external nonReentrant {
@@ -169,6 +168,10 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     rounds[numRounds].tokensLeft += amount;
 
     emit PlacedOrder(numRounds, msg.sender, amount, cost);
+  }
+
+  function hasReferrer(address account) public view returns (bool) {
+    return referrers[account] != address(0);
   }
 
   function cancelOrder(uint256 id) external {
