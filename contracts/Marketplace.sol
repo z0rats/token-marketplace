@@ -97,11 +97,16 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     round.tokensLeft -= amount;
     round.tokensSold += amount;
     round.tradeVolume += totalCost;
+
     // Send rewards to referrers
     if (hasReferrer(msg.sender)) payReferrers(msg.sender, totalCost);
+
     // Transfer excess ETH back to msg.sender
-    if (msg.value - totalCost > 0)
-      payable(msg.sender).transfer(msg.value - totalCost);
+    if (msg.value - totalCost > 0) {
+      // payable(msg.sender).transfer(msg.value - totalCost);
+      (bool sent,) = msg.sender.call{value: msg.value - totalCost}("");
+      require(sent, "Failed to send Ether");
+    }
 
     emit Buy(msg.sender, address(this), amount, round.price, totalCost);
     if (round.tokensLeft == 0) startTradeRound(round.price, round.tokensLeft);
@@ -119,17 +124,24 @@ contract Marketplace is AccessControl, ReentrancyGuard {
 
     // Transfer tokens
     IERC20(token).safeTransfer(msg.sender, amount);
+
     order.amount -= amount;
     rounds[numRounds].tokensLeft -= amount;
     rounds[numRounds].tokensSold += amount;
     rounds[numRounds].tradeVolume += totalCost;
+
     // Transfer 95% ETH to order owner
-    payable(order.account).transfer(totalCost - (totalCost * tradeFee / 10000));
+    (bool sent,) = order.account.call{value: totalCost - (totalCost * tradeFee / 10000)}("");
+    require(sent, "Failed to send Ether");
+
     // Send rewards to referrers
     if (hasReferrer(order.account)) payReferrers(order.account, totalCost);
+
     // Transfer excess ETH back to msg.sender
-    if (msg.value - totalCost > 0)
-      payable(msg.sender).transfer(msg.value - totalCost);
+    if (msg.value - totalCost > 0) {
+      (bool sent,) = msg.sender.call{value: msg.value - totalCost}("");
+      require(sent, "Failed to send Ether");
+    }
     // Check if order should be closed
     // if (order.amount == 0) _cancelOrder(id);
 
@@ -138,8 +150,14 @@ contract Marketplace is AccessControl, ReentrancyGuard {
 
   function payReferrers(address account, uint256 sum) private {
     (address payable ref1, address payable ref2) = getUserReferrers(account);
-    ref1.transfer(sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000);
-    if (ref2 != address(0)) ref2.transfer(sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000);
+    // Reward ref 1
+    (bool sent,) = ref1.call{value: (sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000)}("");
+    require(sent, "Failed to send Ether");
+    // Reward ref 2 (if exists)
+    if (ref2 != address(0)) {
+      (bool sent,) = ref2.call{value: (sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000)}("");
+      require(sent, "Failed to send Ether");
+    }
   }
 
   function placeOrder(uint256 amount, uint256 cost) external nonReentrant {
