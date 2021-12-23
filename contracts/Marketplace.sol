@@ -78,7 +78,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     emit UserRegistered(msg.sender, refferer);
   }
 
-  function getUserRefs(address account) public view returns (address payable, address payable) {
+  function getUserReferrers(address account) public view returns (address payable, address payable) {
     return (referrers[account], referrers[referrers[account]]);
   }
 
@@ -137,7 +137,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   }
 
   function payReferrers(address account, uint256 sum) private {
-    (address payable ref1, address payable ref2) = getUserRefs(account);
+    (address payable ref1, address payable ref2) = getUserReferrers(account);
     ref1.transfer(sum * (isSaleRound ? refLvlOneRate : refTradeRate) / 10000);
     if (ref2 != address(0)) ref2.transfer(sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / 10000);
   }
