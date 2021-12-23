@@ -447,15 +447,15 @@ describe("ACDM Marketplace", function () {
       await mp.registerUser(alice.address);
       await mp.connect(bob).registerUser(owner.address);
       // Alice should have 0 referrers
-      const aliceRefs = await mp.getUserRefs(alice.address);
+      const aliceRefs = await mp.getUserReferrers(alice.address);
       expect(aliceRefs[0]).to.be.equal(ethers.constants.AddressZero);
       expect(aliceRefs[1]).to.be.equal(ethers.constants.AddressZero);
       // Owner should have one ref (Alice)
-      const ownerRefs = await mp.getUserRefs(owner.address);
+      const ownerRefs = await mp.getUserReferrers(owner.address);
       expect(ownerRefs[0]).to.be.equal(alice.address);
       expect(ownerRefs[1]).to.be.equal(ethers.constants.AddressZero);
       // Bob should have two referrers (Owner & Alice)
-      const bobRefs = await mp.getUserRefs(bob.address);
+      const bobRefs = await mp.getUserReferrers(bob.address);
       expect(bobRefs[0]).to.be.equal(owner.address);
       expect(bobRefs[1]).to.be.equal(alice.address);
     });
