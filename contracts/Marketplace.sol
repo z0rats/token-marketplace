@@ -22,7 +22,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   struct Round {
     uint256 createdAt;
     uint256 tradeVolume; // eth
-    uint256 tokensSold; // eth
+    uint256 tokensSold;  // eth
     uint256 tokensLeft;
     uint256 price;
     Order[] orders;
@@ -42,11 +42,11 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   uint256 public constant START_PRICE = 0.00001 ether;
   uint256 public roundTime = 3 days;
   uint256 public tokenPriceRateEth = 0.000004 ether;
-  uint256 public tokenPriceRatePct = 300;       // 3 %
-  uint256 public refLvlOneRate = 500; // 5 %
-  uint256 public refLvlTwoRate = 300; // 3 %
-  uint256 public refTradeRate = 250;  // 2.5 %
-  uint256 public tradeFee = 500;  // 5 %
+  uint256 public tokenPriceRatePct = 300; // 3 %
+  uint256 public refLvlOneRate = 500;     // 5 %
+  uint256 public refLvlTwoRate = 300;     // 3 %
+  uint256 public refTradeRate = 250;      // 2.5 %
+  uint256 public tradeFee = 500;          // 5 %
   uint256 public numRounds;
   bool public isSaleRound;
   address public token;
@@ -55,23 +55,10 @@ contract Marketplace is AccessControl, ReentrancyGuard {
   mapping(uint256 => Round) public rounds;
   mapping(uint256 => Order[]) public orders;
 
-  constructor(address tokenAddress) {
+  constructor(address _token, uint256 _roundTime) {
     _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    token = tokenAddress;
-  }
-
-  function openMarketplace(uint256 _roundTime, uint256 _price) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    token = _token;
     roundTime = _roundTime;
-
-    numRounds++;
-    Round storage r = rounds[numRounds];
-    r.createdAt = block.timestamp;
-    r.price = _price;
-    r.tokensLeft = IERC20(token).totalSupply();
-
-    isSaleRound = true;
-
-    emit NewRound(0, _price);
   }
 
   function getCurrentRoundData() public view returns (Round memory) {
