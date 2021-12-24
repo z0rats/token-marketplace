@@ -12,10 +12,8 @@ const initSupply = ethers.utils.parseUnits("100000.0", decimals);
 // AccessControl roles in bytes32 string
 // DEFAULT_ADMIN_ROLE, MINTER_ROLE, BURNER_ROLE
 const adminRole = ethers.constants.HashZero;
-const minterRole =
-  "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6";
-const burnerRole =
-  "0x51f4231475d91734c657e212cfb2e9728a863d53c9057d6ce6ca203d6e5cfd5d";
+const minterRole = "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6";
+const burnerRole = "0x51f4231475d91734c657e212cfb2e9728a863d53c9057d6ce6ca203d6e5cfd5d";
 
 // Sample data
 const roundTime = 259200; // 3 days in seconds
@@ -144,9 +142,7 @@ describe("ACDM Marketplace", function () {
     it("Should be able to buy tokens on sale round", async () => {
       await mp.buyTokens(tenTokens, oneEthValue);
       expect(await acdmToken.balanceOf(owner.address)).to.equal(tenTokens);
-      expect(await acdmToken.balanceOf(mp.address)).to.equal(
-        initSupply.sub(tenTokens)
-      );
+      expect(await acdmToken.balanceOf(mp.address)).to.equal(initSupply.sub(tenTokens));
     });
 
     it("Referrers must get their rewards", async () => {
@@ -197,23 +193,23 @@ describe("ACDM Marketplace", function () {
       const requiredEth = startPrice.mul(10);
       // Send a lot more ETH than required and check
       // that the balances have changed only by the required amount
-      await expect(
-        await mp.buyTokens(tenTokens, oneEthValue)
-      ).to.changeEtherBalances([owner, mp], [-requiredEth, requiredEth]);
+      await expect(await mp.buyTokens(tenTokens, oneEthValue)).to.changeEtherBalances(
+        [owner, mp],
+        [-requiredEth, requiredEth]
+      );
     });
 
     it("Should not be able to buy with insufficient ether", async () => {
       // 5 tokens price in ETH
       const requiredEth = startPrice.mul(5);
       // Trying to buy 10
-      await expect(
-        mp.buyTokens(tenTokens, { value: requiredEth })
-      ).to.be.revertedWith("Not enough ETH");
+      await expect(mp.buyTokens(tenTokens, { value: requiredEth })).to.be.revertedWith(
+        "Not enough ETH"
+      );
     });
 
     it("Should not be able to buy above available amount", async () => {
-      await expect(mp.buyTokens(initSupply.add(tenTokens), oneEthValue)).to.be
-        .reverted;
+      await expect(mp.buyTokens(initSupply.add(tenTokens), oneEthValue)).to.be.reverted;
     });
 
     it("Should not be able to finish round before 3 days", async () => {
@@ -228,9 +224,9 @@ describe("ACDM Marketplace", function () {
     });
 
     it("Should not be able to place order on sale round", async () => {
-      await expect(
-        mp.placeOrder(tenTokens, ethers.constants.One)
-      ).to.be.revertedWith("Can't place order on sale round");
+      await expect(mp.placeOrder(tenTokens, ethers.constants.One)).to.be.revertedWith(
+        "Can't place order on sale round"
+      );
     });
   });
 
@@ -284,9 +280,9 @@ describe("ACDM Marketplace", function () {
     });
 
     it("Should not be able to place order with zero cost", async () => {
-      await expect(
-        mp.placeOrder(twentyTokens, ethers.constants.Zero)
-      ).to.be.revertedWith("Cost can't be zero");
+      await expect(mp.placeOrder(twentyTokens, ethers.constants.Zero)).to.be.revertedWith(
+        "Cost can't be zero"
+      );
     });
 
     it("Cancelling an order triggers an event", async () => {
@@ -306,50 +302,37 @@ describe("ACDM Marketplace", function () {
 
     it("Should not be able to cancel someone else's order", async () => {
       await mp.placeOrder(tenTokens, oneEth);
-      await expect(
-        mp.connect(alice).cancelOrder(firstOrder)
-      ).to.be.revertedWith("Not your order");
+      await expect(mp.connect(alice).cancelOrder(firstOrder)).to.be.revertedWith(
+        "Not your order"
+      );
     });
 
     it("Should not be able to buy own order", async () => {
       await mp.placeOrder(tenTokens, oneEth);
-      await expect(
-        mp.buyOrder(firstOrder, tenTokens, oneEthValue)
-      ).to.be.revertedWith("Can't buy from yourself");
+      await expect(mp.buyOrder(firstOrder, tenTokens, oneEthValue)).to.be.revertedWith(
+        "Can't buy from yourself"
+      );
     });
 
     it("Should not be able to buy with insufficient ether", async () => {
       await mp.placeOrder(tenTokens, oneEth);
-      await expect(
-        mp.connect(alice).buyOrder(firstOrder, tenTokens)
-      ).to.be.revertedWith("Not enough ETH");
+      await expect(mp.connect(alice).buyOrder(firstOrder, tenTokens)).to.be.revertedWith(
+        "Not enough ETH"
+      );
     });
 
     it("Buying order triggers an event", async () => {
       await mp.placeOrder(tenTokens, oneEth);
       const price = oneEth.div(10);
-      expect(
-        await mp
-          .connect(alice)
-          .buyOrder(firstOrder, tenTokens, { value: oneEth })
-      )
+      expect(await mp.connect(alice).buyOrder(firstOrder, tenTokens, { value: oneEth }))
         .to.emit(mp, "TokenBuy")
-        .withArgs(
-          tradeRoundId,
-          alice.address,
-          owner.address,
-          tenTokens,
-          price,
-          oneEth
-        );
+        .withArgs(tradeRoundId, alice.address, owner.address, tenTokens, price, oneEth);
     });
 
     it("Should be able to buy out the order", async () => {
       await mp.placeOrder(twentyTokens, oneEth);
       const aliceInitBalance = await acdmToken.balanceOf(alice.address);
-      await mp
-        .connect(alice)
-        .buyOrder(firstOrder, twentyTokens, { value: oneEth });
+      await mp.connect(alice).buyOrder(firstOrder, twentyTokens, { value: oneEth });
       const newAliceBalance = await acdmToken.balanceOf(alice.address);
       // Check token balance changed
       expect(newAliceBalance).to.be.equal(aliceInitBalance.add(twentyTokens));
@@ -362,9 +345,7 @@ describe("ACDM Marketplace", function () {
     it("Should be able to buy part of the order", async () => {
       await mp.placeOrder(twentyTokens, oneEth);
       const aliceInitBalance = await acdmToken.balanceOf(alice.address);
-      await mp
-        .connect(alice)
-        .buyOrder(firstOrder, tenTokens, { value: oneEth });
+      await mp.connect(alice).buyOrder(firstOrder, tenTokens, { value: oneEth });
       const newAliceBalance = await acdmToken.balanceOf(alice.address);
       // Check token balance changed
       expect(newAliceBalance).to.be.equal(aliceInitBalance.add(tenTokens));
@@ -397,9 +378,7 @@ describe("ACDM Marketplace", function () {
 
       // Owner should get 95%, Alice & Market should get 2.5%
       await expect(
-        await mp
-          .connect(bob)
-          .buyOrder(firstOrder, fiveTokens, { value: requiredEth })
+        await mp.connect(bob).buyOrder(firstOrder, fiveTokens, { value: requiredEth })
       ).to.changeEtherBalances(
         [owner, alice, mp],
         [
