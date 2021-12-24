@@ -29,9 +29,7 @@ if (!process.env.ALCHEMY_URL) {
   alchemyApiKey = process.env.ALCHEMY_URL;
 }
 
-function createNetworkConfig(
-  network: keyof typeof chainIds
-): NetworkUserConfig {
+function createNetworkConfig(network: keyof typeof chainIds): NetworkUserConfig {
   const url: string = alchemyApiKey;
   return {
     accounts: {
@@ -81,8 +79,7 @@ const config: HardhatUserConfig = {
     enabled: process.env.GAS ? true : false,
     currency: "USD",
     token: "ETH",
-    gasPriceApi:
-      "https://api.etherscan.io/api?module=proxy&action=eth_gasPrice",
+    gasPriceApi: "https://api.etherscan.io/api?module=proxy&action=eth_gasPrice",
     coinmarketcap: process.env.CMC_API_KEY,
   },
 };
