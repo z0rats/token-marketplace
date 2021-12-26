@@ -7,8 +7,9 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./utils/structs/EnumerableMap.sol";
 import "./token/ERC20/SafeERC20.sol";
 import "./access/AccessControl.sol";
+import "./security/Pausable.sol";
 
-contract Marketplace is AccessControl, ReentrancyGuard {
+contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   using SafeERC20 for IERC20;
 
   struct Order {
@@ -63,14 +64,14 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     startSaleRound(0, 1 ether);
   }
 
-  function registerUser(address referrer) external {
+  function registerUser(address referrer) external whenNotPaused {
     require(!hasReferrer(msg.sender), "Already has a referrer");
     require(referrer != msg.sender, "Can't be self-referrer");
     referrers[msg.sender] = referrer;
     emit UserRegistered(msg.sender, referrer);
   }
 
-  function placeOrder(uint256 amount, uint256 cost) external {
+  function placeOrder(uint256 amount, uint256 cost) external whenNotPaused {
     require(!isSaleRound, "Can't place order on sale round");
     require(amount > 0, "Amount can't be zero");
     require(cost > 0, "Cost can't be zero");
@@ -92,7 +93,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     emit PlacedOrder(numRounds, msg.sender, amount, cost);
   }
 
-  function cancelOrder(uint256 id) external {
+  function cancelOrder(uint256 id) external whenNotPaused {
     Order storage order = rounds[numRounds].orders[id];
     require(msg.sender == order.account, "Not your order");
     require(order.isOpen, "Already canceled");
@@ -100,22 +101,20 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     _cancelOrder(id);
   }
 
-  function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) {
+  function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
     require((rounds[numRounds].createdAt + roundTime) <= block.timestamp, "Need to wait 3 days");
 
     isSaleRound ? startTradeRound(rounds[numRounds].price, rounds[numRounds].tokensLeft)
       : startSaleRound(rounds[numRounds].price, rounds[numRounds].tradeVolume);
   }
 
-  function buyTokens(uint256 amount) external payable nonReentrant {
+  function buyTokens(uint256 amount) external payable nonReentrant whenNotPaused {
     require(isSaleRound, "Can't buy in trade round");
     require(amount > 0, "Amount can't be zero");
     // Check that user send enough ether
     Round storage round = rounds[numRounds];
     uint256 totalCost = round.price * (amount / 10 ** 18);
     require(msg.value >= totalCost, "Not enough ETH");
-
-    // console.log("how much can buy on this: ", msg.value * (10 ** 18) / round.price);
     
     // Transfer tokens
     IERC20(token).safeTransfer(msg.sender, amount);
@@ -135,7 +134,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     if (round.tokensLeft == 0) startTradeRound(round.price, round.tokensLeft);
   }
 
-  function buyOrder(uint256 id, uint256 amount) external payable nonReentrant {
+  function buyOrder(uint256 id, uint256 amount) external payable nonReentrant whenNotPaused {
     Round storage round = rounds[numRounds];
     require(id >= 0 && id < round.orders.length, "Incorrect order id");
     Order storage order = round.orders[id];
@@ -205,12 +204,12 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     return referrers[account] != address(0);
   }
 
-  function sendEther(address account, uint256 amount) private {
+  function sendEther(address account, uint256 amount) private whenNotPaused {
     (bool sent,) = account.call{value: amount}("");
     require(sent, "Failed to send Ether");
   }
 
-  function payReferrers(address account, uint256 sum) private {
+  function payReferrers(address account, uint256 sum) private whenNotPaused {
     (address ref1, address ref2) = getUserReferrers(account);
     // Reward ref 1
     sendEther(ref1, sum * (isSaleRound ? REF_LVL_ONE_RATE : REF_TRADE_RATE) / 10000);
@@ -220,7 +219,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     }
   }
 
-  function _cancelOrder(uint256 id) private {
+  function _cancelOrder(uint256 id) private whenNotPaused {
     Order storage order = rounds[numRounds].orders[id];
     order.isOpen = false;
     rounds[numRounds].tokensLeft -= order.amount;
@@ -231,7 +230,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     emit CanceledOrder(numRounds, id, msg.sender);
   }
 
-  function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private {
+  function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private whenNotPaused {
     // Closing orders
     closeOpenOrders(numRounds);
     // Calc new price
@@ -253,7 +252,7 @@ contract Marketplace is AccessControl, ReentrancyGuard {
     emit StartedSaleRound(numRounds, newPrice, oldPrice, mintAmount);
   }
 
-  function startTradeRound(uint256 oldPrice, uint256 tokensLeft) private {
+  function startTradeRound(uint256 oldPrice, uint256 tokensLeft) private whenNotPaused {
     // Burn unsold tokens
     if (tokensLeft > 0) IERC20(token)._burn(address(this), tokensLeft);
   
