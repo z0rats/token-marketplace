@@ -38,7 +38,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   event StartedTradeRound(uint256 indexed roundID);
   event FinishedTradeRound(uint256 indexed roundID, uint256 tradeVolume);
 
-  uint256 public roundTime = 3 days;
+  uint256 public roundTime;
   uint256 public numRounds;
   address public token;
   bool public isSaleRound;
