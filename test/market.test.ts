@@ -25,7 +25,6 @@ const refLvlTwoRate = 300; // 3%
 const refTradeRate = 250; // 2.5 %
 const tradeFee = 500; // 5 %
 const fixedRate = ethers.utils.parseEther("0.000004");
-const oneEthValue = { value: ethers.utils.parseEther("1.0") };
 const oneEth = ethers.utils.parseEther("1.0");
 const fiveTokens = ethers.utils.parseUnits("5.0", decimals);
 const tenTokens = ethers.utils.parseUnits("10.0", decimals);
@@ -144,7 +143,7 @@ describe("ACDM Marketplace", function () {
 
   describe("Sale round", function () {
     it("Should be able to buy tokens on sale round", async () => {
-      await mp.buyTokens(tenTokens, oneEthValue);
+      await mp.buyTokens(tenTokens, { value: oneEth });
       expect(await acdmToken.balanceOf(owner.address)).to.equal(tenTokens);
       expect(await acdmToken.balanceOf(mp.address)).to.equal(initSupply.sub(tenTokens));
     });
@@ -197,10 +196,9 @@ describe("ACDM Marketplace", function () {
       const requiredEth = startPrice.mul(10);
       // Send a lot more ETH than required and check
       // that the balances have changed only by the required amount
-      await expect(await mp.buyTokens(tenTokens, oneEthValue)).to.changeEtherBalances(
-        [owner, mp],
-        [-requiredEth, requiredEth]
-      );
+      await expect(
+        await mp.buyTokens(tenTokens, { value: oneEth })
+      ).to.changeEtherBalances([owner, mp], [-requiredEth, requiredEth]);
     });
 
     it("Should not be able to buy with insufficient ether", async () => {
@@ -213,7 +211,9 @@ describe("ACDM Marketplace", function () {
     });
 
     it("Should not be able to buy above available amount", async () => {
-      await expect(mp.buyTokens(initSupply.add(tenTokens), oneEthValue)).to.be.reverted;
+      await expect(
+        mp.buyTokens(initSupply.add(tenTokens), { value: oneEth.mul(2) })
+      ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
     });
 
     it("Should not be able to finish round before 3 days", async () => {
@@ -313,9 +313,9 @@ describe("ACDM Marketplace", function () {
 
     it("Should not be able to buy own order", async () => {
       await mp.placeOrder(tenTokens, oneEth);
-      await expect(mp.buyOrder(firstOrder, tenTokens, oneEthValue)).to.be.revertedWith(
-        "Can't buy from yourself"
-      );
+      await expect(
+        mp.buyOrder(firstOrder, tenTokens, { value: oneEth })
+      ).to.be.revertedWith("Can't buy from yourself");
     });
 
     it("Should not be able to buy with insufficient ether", async () => {
@@ -362,7 +362,7 @@ describe("ACDM Marketplace", function () {
     it("Cancelling partly bought order returns tokens left", async () => {
       const initBalance = await acdmToken.balanceOf(owner.address);
       await mp.placeOrder(twentyTokens, oneEth);
-      await mp.connect(alice).buyOrder(firstOrder, tenTokens, oneEthValue);
+      await mp.connect(alice).buyOrder(firstOrder, tenTokens, { value: oneEth });
       await mp.cancelOrder(firstOrder);
       const newBalance = await acdmToken.balanceOf(owner.address);
       expect(newBalance).to.be.equal(initBalance.sub(tenTokens));
