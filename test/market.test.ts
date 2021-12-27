@@ -210,6 +210,12 @@ describe("ACDM Marketplace", function () {
       );
     });
 
+    it("Should not be able to buy zero tokens", async () => {
+      await expect(
+        mp.buyTokens(ethers.constants.Zero, { value: oneEth })
+      ).to.be.revertedWith("Amount can't be zero");
+    });
+
     it("Should not be able to buy above available amount", async () => {
       await expect(
         mp.buyTokens(initSupply.add(tenTokens), { value: oneEth.mul(2) })
@@ -283,6 +289,12 @@ describe("ACDM Marketplace", function () {
       ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
     });
 
+    it("Should not be able to place order with zero tokens", async () => {
+      await expect(mp.placeOrder(ethers.constants.Zero, oneEth)).to.be.revertedWith(
+        "Amount can't be zero"
+      );
+    });
+
     it("Should not be able to place order with zero cost", async () => {
       await expect(mp.placeOrder(twentyTokens, ethers.constants.Zero)).to.be.revertedWith(
         "Cost can't be zero"
@@ -292,7 +304,7 @@ describe("ACDM Marketplace", function () {
     it("Cancelling an order triggers an event", async () => {
       await mp.placeOrder(tenTokens, oneEth);
       expect(await mp.cancelOrder(firstOrder))
-        .to.emit(mp, "CanceledOrder")
+        .to.emit(mp, "CancelledOrder")
         .withArgs(await mp.numRounds(), firstOrder, owner.address);
     });
 
@@ -311,11 +323,44 @@ describe("ACDM Marketplace", function () {
       );
     });
 
-    it("Should not be able to buy own order", async () => {
+    it("Should not be able to cancel cancelled order", async () => {
+      await mp.placeOrder(tenTokens, oneEth);
+      await mp.cancelOrder(firstOrder);
+      await expect(mp.cancelOrder(firstOrder)).to.be.revertedWith("Already cancelled");
+    });
+
+    it("Should not be able to buy from marketplace", async () => {
+      await expect(mp.buyTokens(tenTokens, { value: oneEth })).to.be.revertedWith(
+        "Can't buy in trade round"
+      );
+    });
+
+    it("Should not be able to buy from yourself", async () => {
       await mp.placeOrder(tenTokens, oneEth);
       await expect(
         mp.buyOrder(firstOrder, tenTokens, { value: oneEth })
       ).to.be.revertedWith("Can't buy from yourself");
+    });
+
+    it("Should not be able to buy zero tokens", async () => {
+      await mp.placeOrder(tenTokens, oneEth);
+      await expect(
+        mp.connect(alice).buyOrder(firstOrder, ethers.constants.Zero, { value: oneEth })
+      ).to.be.revertedWith("Amount can't be zero");
+    });
+
+    it("Should not be able to buy non-existent order", async () => {
+      await expect(mp.buyOrder(firstOrder, tenTokens)).to.be.revertedWith(
+        "Incorrect order id"
+      );
+    });
+
+    it("Should not be able to buy cancelled order", async () => {
+      await mp.placeOrder(tenTokens, oneEth);
+      await mp.cancelOrder(firstOrder);
+      await expect(mp.buyOrder(firstOrder, tenTokens)).to.be.revertedWith(
+        "Order is cancelled"
+      );
     });
 
     it("Should not be able to buy with insufficient ether", async () => {
@@ -323,6 +368,13 @@ describe("ACDM Marketplace", function () {
       await expect(mp.connect(alice).buyOrder(firstOrder, tenTokens)).to.be.revertedWith(
         "Not enough ETH"
       );
+    });
+
+    it("Should not be able to buy more than available", async () => {
+      await mp.placeOrder(tenTokens, oneEth);
+      await expect(
+        mp.connect(alice).buyOrder(firstOrder, twentyTokens)
+      ).to.be.revertedWith("Order doesn't have enough tokens");
     });
 
     it("Buying order triggers an event", async () => {

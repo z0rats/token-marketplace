@@ -31,7 +31,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
 
   event UserRegistered(address indexed account, address indexed referrer);
   event PlacedOrder(uint256 indexed roundID, address indexed account, uint256 amount, uint256 cost);
-  event CanceledOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed account);
+  event CancelledOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed account);
   event TokenBuy(uint256 indexed roundID, address indexed buyer, address indexed seller, uint256 amount, uint256 price, uint256 cost);
   event StartedSaleRound(uint256 indexed roundID, uint256 newPrice, uint256 oldPrice, uint256 minted);
   event FinishedSaleRound(uint256 indexed roundID, uint256 oldPrice, uint256 burned);
@@ -117,11 +117,11 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   function cancelOrder(uint256 id) external whenNotPaused {
     Order storage order = orders[numRounds][id];
     require(msg.sender == order.account, "Not your order");
-    require(order.isOpen, "Already canceled");
+    require(order.isOpen, "Already cancelled");
 
     rounds[numRounds].tokensLeft -= order.amount;
     _cancelOrder(order);
-    emit CanceledOrder(numRounds, id, msg.sender);
+    emit CancelledOrder(numRounds, id, msg.sender);
   }
 
   function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
@@ -165,7 +165,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     require(id >= 0 && id < orders[numRounds].length, "Incorrect order id");
     Order storage order = orders[numRounds][id];
     require(msg.sender != order.account, "Can't buy from yourself");
-    require(order.isOpen, "Order already closed");
+    require(order.isOpen, "Order is cancelled");
     require(amount > 0, "Amount can't be zero");
     require(amount <= order.amount, "Order doesn't have enough tokens");
     uint256 totalCost = calcCost(order.tokenPrice, amount);
@@ -189,7 +189,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     if (msg.value - totalCost > 0) {
       sendEther(msg.sender, msg.value - totalCost);
     }
-    // Check if order should be closed
+    // Check if order should be cancelled
     // if (order.amount == 0) _cancelOrder(id);
 
     emit TokenBuy(numRounds, msg.sender, order.account, amount, order.tokenPrice, totalCost);
@@ -311,7 +311,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     for (uint256 i = 0; i < orders.length; i++) {
       if (orders[i].isOpen) {
         _cancelOrder(orders[i]);
-        emit CanceledOrder(numRounds, i, msg.sender);
+        emit CancelledOrder(numRounds, i, msg.sender);
       }
     }
   }
