@@ -358,7 +358,7 @@ describe("ACDM Marketplace", function () {
     it("Should not be able to buy cancelled order", async () => {
       await mp.placeOrder(tenTokens, oneEth);
       await mp.cancelOrder(firstOrder);
-      await expect(mp.buyOrder(firstOrder, tenTokens)).to.be.revertedWith(
+      await expect(mp.connect(alice).buyOrder(firstOrder, tenTokens)).to.be.revertedWith(
         "Order is cancelled"
       );
     });
