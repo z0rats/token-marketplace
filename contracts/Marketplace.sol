@@ -129,7 +129,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     round.tradeVolume += totalCost;
 
     // Send rewards to referrers
-    if (hasReferrer(msg.sender)) payReferrers(msg.sender, totalCost);
+    payReferrers(msg.sender, totalCost);
 
     // Transfer excess ETH back to msg.sender
     if (msg.value - totalCost > 0) {
@@ -162,7 +162,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     sendEther(order.account, totalCost - (totalCost * 500 / 10000));
 
     // Send rewards to referrers
-    if (hasReferrer(order.account)) payReferrers(order.account, totalCost);
+    payReferrers(order.account, totalCost);
 
     // Transfer excess ETH back to msg.sender
     if (msg.value - totalCost > 0) {
@@ -202,6 +202,10 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   //   // }
   // }
 
+  function getUserReferrer(address account) public view returns (address) {
+    return referrers[account];
+  }
+
   function getUserReferrers(address account) public view returns (address, address) {
     return (referrers[account], referrers[referrers[account]]);
   }
@@ -216,7 +220,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   }
 
   /** @notice Transfers reward in ETH to `account` referrers.
-   * @dev This contract uses two-lvl referral system:
+   * @dev This contract implements two-lvl referral system:
    * In sale round Lvl1 referral gets 5% and Lvl2 gets 3%
    * If theres no referrals or only one, the contract gets these percents
    *
@@ -227,12 +231,14 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
    * @param sum The amount to calc reward from.
    */
   function payReferrers(address account, uint256 sum) private whenNotPaused {
-    (address ref1, address ref2) = getUserReferrers(account);
-    // Reward ref 1
-    sendEther(ref1, sum * (isSaleRound ? 500 : 250) / 10000);
-    // Reward ref 2 (if exists)
-    if (ref2 != address(0)) {
-      sendEther(ref2, sum * (isSaleRound ? 300 : 250) / 10000);
+    if (hasReferrer(account)) {
+      address ref1 = getUserReferrer(account);
+      // Reward ref 1
+      sendEther(ref1, sum * (isSaleRound ? 500 : 250) / 10000);
+      // Reward ref 2 (if exists)
+      if (hasReferrer(ref1)) {
+        sendEther(getUserReferrer(ref1), sum * (isSaleRound ? 300 : 250) / 10000);
+      }
     }
   }
 
