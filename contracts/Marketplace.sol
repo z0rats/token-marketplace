@@ -38,13 +38,6 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   event StartedTradeRound(uint256 indexed roundID);
   event FinishedTradeRound(uint256 indexed roundID, uint256 tradeVolume);
 
-  uint256 public constant PRICE_RATE_ETH = 0.000004 ether;
-  uint256 public constant PRICE_RATE_PCT = 300;   // 3 %
-  uint256 public constant TRADE_FEE = 500;        // 5 %
-  uint256 public constant REF_LVL_ONE_RATE = 500; // 5 %
-  uint256 public constant REF_LVL_TWO_RATE = 300; // 3 %
-  uint256 public constant REF_TRADE_RATE = 250;   // 2.5 %  
-
   uint256 public roundTime = 3 days;
   uint256 public numRounds;
   address public token;
@@ -165,8 +158,8 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     round.tokensLeft -= amount;
     round.tradeVolume += totalCost;
 
-    // Transfer 95% ETH to order owner
-    sendEther(order.account, totalCost - (totalCost * TRADE_FEE / 10000));
+    // Transfer 95% ETH to order owner (total - 5%)
+    sendEther(order.account, totalCost - (totalCost * 500 / 10000));
 
     // Send rewards to referrers
     if (hasReferrer(order.account)) payReferrers(order.account, totalCost);
@@ -222,13 +215,24 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     require(sent, "Failed to send Ether");
   }
 
+  /** @notice Transfers reward in ETH to `account` referrers.
+   * @dev This contract uses two-lvl referral system:
+   * In sale round Lvl1 referral gets 5% and Lvl2 gets 3%
+   * If theres no referrals or only one, the contract gets these percents
+   *
+   * In trade round every referral takes 2.5% reward
+   * If there are no referrals or only one, the contract gets these percents
+   *
+   * @param account The account to get the referrals from.
+   * @param sum The amount to calc reward from.
+   */
   function payReferrers(address account, uint256 sum) private whenNotPaused {
     (address ref1, address ref2) = getUserReferrers(account);
     // Reward ref 1
-    sendEther(ref1, sum * (isSaleRound ? REF_LVL_ONE_RATE : REF_TRADE_RATE) / 10000);
+    sendEther(ref1, sum * (isSaleRound ? 500 : 250) / 10000);
     // Reward ref 2 (if exists)
     if (ref2 != address(0)) {
-      sendEther(ref2, sum * (isSaleRound ? REF_LVL_TWO_RATE : REF_TRADE_RATE) / 10000);
+      sendEther(ref2, sum * (isSaleRound ? 300 : 250) / 10000);
     }
   }
 
@@ -246,8 +250,8 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private whenNotPaused {
     // Closing orders
     closeOpenOrders(numRounds);
-    // Calc new price
-    uint256 newPrice = oldPrice + (oldPrice * PRICE_RATE_PCT / 10000) + PRICE_RATE_ETH;
+    // Calc new price as (old + 3% + 0.000004 eth)
+    uint256 newPrice = oldPrice + (oldPrice * 300 / 10000) + 0.000004 ether;
     
     numRounds++;
     Round storage newRound = rounds[numRounds];
