@@ -131,12 +131,16 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
       : startSaleRound(rounds[numRounds].price, rounds[numRounds].tradeVolume);
   }
 
+  function calcCost(uint256 price, uint256 amount) public pure returns (uint256) {
+    return price * (amount / 10 ** 18);
+  }
+
   function buyTokens(uint256 amount) external payable nonReentrant whenNotPaused {
     require(isSaleRound, "Can't buy in trade round");
     require(amount > 0, "Amount can't be zero");
     // Check that user send enough ether
     Round storage round = rounds[numRounds];
-    uint256 totalCost = round.price * (amount / 10 ** 18);
+    uint256 totalCost = calcCost(round.price, amount);
     require(msg.value >= totalCost, "Not enough ETH");
     
     // Transfer tokens
@@ -164,7 +168,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     require(order.isOpen, "Order already closed");
     require(amount > 0, "Amount can't be zero");
     require(amount <= order.amount, "Order doesn't have enough tokens");
-    uint256 totalCost = order.tokenPrice * (amount / 10 ** 18);
+    uint256 totalCost = calcCost(order.tokenPrice, amount);
     require(msg.value >= totalCost, "Not enough ETH");
 
     // Transfer tokens
