@@ -10,6 +10,7 @@ import "./access/AccessControl.sol";
 import "./security/Pausable.sol";
 import "./token/ACDMToken.sol";
 
+/** @title ACDM marketplace. */
 contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   using SafeERC20 for IERC20;
 
@@ -47,12 +48,22 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   mapping(address => address) public referrers; // referral => referrer
   // mapping(address => address[]) public referrers; // ?
 
+  /** @notice Creates Marketplace contract.
+   * @dev Sets `msg.sender` as contract Admin
+   * @param _token The address of the ACDM token.
+   * @param _roundTime Round time (timestamp).
+   */
   constructor(address _token, uint256 _roundTime) {
     _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     roundTime = _roundTime;
     token = _token;
   }
 
+  /** @notice Starting first Marketplace round.
+   * @dev Mints `mintAmount` of tokens based on `startPrice` and `startVolume`.
+   * @param startPrice Starting price per token.
+   * @param startVolume Starting trade volume.
+   */
   function initMarketplace(uint256 startPrice, uint256 startVolume) external onlyRole(DEFAULT_ADMIN_ROLE) {
     isSaleRound = true;
 
@@ -69,6 +80,10 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     emit StartedSaleRound(numRounds, startPrice, 0, mintAmount);
   }
 
+  /** @notice Allows the user to specify his referrer.
+   * @dev Once it's called, the referrer can't be changed.
+   * @param referrer The address of the referrer.
+   */
   function registerUser(address referrer) external whenNotPaused {
     require(!hasReferrer(msg.sender), "Already has a referrer");
     require(referrer != msg.sender, "Can't be self-referrer");
@@ -223,8 +238,9 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
 
   /** @notice Transfers reward in ETH to `account` referrers.
    * @dev This contract implements two-lvl referral system:
+   *
    * In sale round Lvl1 referral gets 5% and Lvl2 gets 3%
-   * If theres no referrals or only one, the contract gets these percents
+   * If there are no referrals or only one, the contract gets these percents
    *
    * In trade round every referral takes 2.5% reward
    * If there are no referrals or only one, the contract gets these percents
