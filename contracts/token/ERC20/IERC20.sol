@@ -57,7 +57,7 @@ interface IERC20 {
      * @param to The address to mint tokens on.
      * @param amount The amount of tokens to mint.
      */
-    function _mint(address to, uint256 amount) external;
+    // function _mint(address to, uint256 amount) external;
 
     /** @notice Burns `amount` of tokens.
      * @dev Decreases `_totalSupply` and `_balances[msg.sender]` 
@@ -65,7 +65,7 @@ interface IERC20 {
      * @param account The account to burn tokens from.
      * @param amount The amount of tokens to burn.
      */
-    function _burn(address account, uint256 amount) external;
+    // function _burn(address account, uint256 amount) external;
 
     /** @notice Emitted when a token transfer occurs.
      * @param from Sender`s address.

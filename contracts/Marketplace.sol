@@ -8,14 +8,15 @@ import "./utils/structs/EnumerableMap.sol";
 import "./token/ERC20/SafeERC20.sol";
 import "./access/AccessControl.sol";
 import "./security/Pausable.sol";
+import "./token/ACDMToken.sol";
 
 contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   using SafeERC20 for IERC20;
 
   struct Order {
     uint256 amount;
-    uint256 cost;
-    uint256 tokenPrice;
+    uint256 cost;       // eth tokenPrice * amount
+    uint256 tokenPrice; // eth
     address account;
     bool isOpen;
   }
@@ -26,7 +27,6 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     uint256 tokensLeft;
     uint256 price;
     Order[] orders;
-    // mapping(address => Order[]) orders; // orders by user ?
   }
 
   event UserRegistered(address indexed account, address indexed referrer);
@@ -38,7 +38,6 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   event StartedTradeRound(uint256 indexed roundID);
   event FinishedTradeRound(uint256 indexed roundID, uint256 tradeVolume);
 
-  uint256 public constant START_PRICE = 0.00001 ether;
   uint256 public constant PRICE_RATE_ETH = 0.000004 ether;
   uint256 public constant PRICE_RATE_PCT = 300;   // 3 %
   uint256 public constant TRADE_FEE = 500;        // 5 %
@@ -51,17 +50,31 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   address public token;
   bool public isSaleRound;
 
+  mapping(uint256 => Round) public rounds;      // roundID => Round
+  mapping(uint256 => Order[]) public orders;    // roundID => orders[]
   mapping(address => address) public referrers; // referral => referrer
   // mapping(address => address[]) public referrers; // ?
-  mapping(uint256 => Round) public rounds;
-  mapping(uint256 => Order[]) public orders;
 
   constructor(address _token, uint256 _roundTime) {
     _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    token = _token;
     roundTime = _roundTime;
+    token = _token;
+  }
 
-    startSaleRound(0, 1 ether);
+  function initMarketplace(uint256 startPrice, uint256 startVolume) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    isSaleRound = true;
+
+    numRounds++;
+    Round storage newRound = rounds[numRounds];
+    newRound.createdAt = block.timestamp;
+    newRound.price = startPrice;
+
+    uint256 mintAmount = startVolume * (10 ** 18) / startPrice;
+    newRound.tokensLeft = mintAmount;
+
+    ACDMToken(token).mint(address(this), mintAmount);
+
+    emit StartedSaleRound(numRounds, startPrice, 0, mintAmount);
   }
 
   function registerUser(address referrer) external whenNotPaused {
@@ -239,10 +252,10 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     numRounds++;
     Round storage newRound = rounds[numRounds];
     newRound.createdAt = block.timestamp;
-    newRound.price = numRounds == 1 ? START_PRICE : newPrice;
+    newRound.price = newPrice;
 
-    uint256 mintAmount = tradeVolume * (10 ** 18) / (numRounds == 1 ? START_PRICE : newPrice);
-    IERC20(token)._mint(address(this), mintAmount);
+    uint256 mintAmount = tradeVolume * (10 ** 18) / newPrice;
+    ACDMToken(token).mint(address(this), mintAmount);
 
     newRound.tokensLeft = mintAmount;
 
@@ -254,7 +267,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
 
   function startTradeRound(uint256 oldPrice, uint256 tokensLeft) private whenNotPaused {
     // Burn unsold tokens
-    if (tokensLeft > 0) IERC20(token)._burn(address(this), tokensLeft);
+    if (tokensLeft > 0) ACDMToken(token).burn(address(this), tokensLeft);
   
     numRounds++;
     Round storage newRound = rounds[numRounds];

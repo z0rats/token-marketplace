@@ -18,6 +18,7 @@ const burnerRole = "0x51f4231475d91734c657e212cfb2e9728a863d53c9057d6ce6ca203d6e
 // Sample data
 const roundTime = 259200; // 3 days in seconds
 const startPrice = ethers.utils.parseEther("0.00001");
+const startVolume = ethers.utils.parseEther("1.0");
 const ratePct = 300; // 3%
 const refLvlOneRate = 500; // 5%
 const refLvlTwoRate = 300; // 3%
@@ -65,6 +66,9 @@ describe("ACDM Marketplace", function () {
     // Grant Minter & Burner role to Marketplace
     await acdmToken.grantRole(minterRole, mp.address);
     await acdmToken.grantRole(burnerRole, mp.address);
+
+    // Starting sale round
+    await mp.initMarketplace(startPrice, startVolume);
   });
 
   describe("Deployment", function () {
