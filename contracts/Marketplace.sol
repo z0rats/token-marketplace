@@ -26,7 +26,6 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     uint256 tradeVolume; // eth
     uint256 tokensLeft;
     uint256 price;
-    Order[] orders;
   }
 
   event UserRegistered(address indexed account, address indexed referrer);
@@ -85,8 +84,8 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
     uint256 tokenPrice = cost / (amount / 10 ** 18);
-    Round storage round = rounds[numRounds];
-    round.orders.push(Order({
+
+    orders[numRounds].push(Order({
       account: msg.sender,
       amount: amount,
       cost: cost,
@@ -94,17 +93,20 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
       isOpen: true
     }));
 
+    Round storage round = rounds[numRounds];
     round.tokensLeft += amount;
 
     emit PlacedOrder(numRounds, msg.sender, amount, cost);
   }
 
   function cancelOrder(uint256 id) external whenNotPaused {
-    Order storage order = rounds[numRounds].orders[id];
+    Order storage order = orders[numRounds][id];
     require(msg.sender == order.account, "Not your order");
     require(order.isOpen, "Already canceled");
 
-    _cancelOrder(id);
+    rounds[numRounds].tokensLeft -= order.amount;
+    _cancelOrder(order);
+    emit CanceledOrder(numRounds, id, msg.sender);
   }
 
   function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
@@ -141,9 +143,8 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   }
 
   function buyOrder(uint256 id, uint256 amount) external payable nonReentrant whenNotPaused {
-    Round storage round = rounds[numRounds];
-    require(id >= 0 && id < round.orders.length, "Incorrect order id");
-    Order storage order = round.orders[id];
+    require(id >= 0 && id < orders[numRounds].length, "Incorrect order id");
+    Order storage order = orders[numRounds][id];
     require(msg.sender != order.account, "Can't buy from yourself");
     require(order.isOpen, "Order already closed");
     require(amount > 0, "Amount can't be zero");
@@ -154,6 +155,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     // Transfer tokens
     IERC20(token).safeTransfer(msg.sender, amount);
 
+    Round storage round = rounds[numRounds];
     order.amount -= amount;
     round.tokensLeft -= amount;
     round.tradeVolume += totalCost;
@@ -183,15 +185,15 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   }
 
   function getCurrentRoundOrders() external view returns (Order[] memory) {
-    return rounds[numRounds].orders;
+    return orders[numRounds];
   }
 
   function getPastRoundOrders(uint256 roundID) external view returns (Order[] memory) {
-    return rounds[roundID].orders;
+    return orders[roundID];
   }
 
   function getOrderData(uint256 roundID, uint256 id) external view returns (Order memory) {
-    return rounds[roundID].orders[id];
+    return orders[roundID][id];
   }
 
   // function getUserOrders(address account) external view returns (Order[] memory orders) {
@@ -242,21 +244,16 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     }
   }
 
-  function _cancelOrder(uint256 id) private whenNotPaused {
-    Order storage order = rounds[numRounds].orders[id];
+  function _cancelOrder(Order storage order) private whenNotPaused {
     order.isOpen = false;
-    rounds[numRounds].tokensLeft -= order.amount;
-
     // Return unsold tokens to the msg.sender
-    IERC20(token).safeTransfer(order.account, order.amount);
-
-    emit CanceledOrder(numRounds, id, msg.sender);
+    if (order.amount > 0) IERC20(token).safeTransfer(order.account, order.amount);
   }
 
   function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private whenNotPaused {
     // Closing orders
-    closeOpenOrders(numRounds);
-    // Calc new price as (old + 3% + 0.000004 eth)
+    closeOpenOrders();
+    // Calc new price as (oldPrice + 3% + 0.000004 eth)
     uint256 newPrice = oldPrice + (oldPrice * 300 / 10000) + 0.000004 ether;
     
     numRounds++;
@@ -289,12 +286,12 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     emit StartedTradeRound(numRounds);
   }
 
-  function closeOpenOrders(uint256 roundID) private {
-    Round storage round = rounds[roundID];
-    for (uint256 i = 0; i < round.orders.length; i++) {
-      if (round.orders[i].isOpen) {
-        round.orders[i].isOpen = false;
-        IERC20(token).safeTransfer(round.orders[i].account, round.orders[i].amount);
+  function closeOpenOrders() private {
+    Order[] storage orders = orders[numRounds];
+    for (uint256 i = 0; i < orders.length; i++) {
+      if (orders[i].isOpen) {
+        _cancelOrder(orders[i]);
+        emit CanceledOrder(numRounds, i, msg.sender);
       }
     }
   }
