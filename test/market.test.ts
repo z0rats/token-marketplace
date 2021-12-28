@@ -36,10 +36,13 @@ const saleRound1 = 1;
 const tradeRound1 = 2;
 const saleRound2 = 3;
 const tradeRound2 = 4;
-// const exp = ethers.BigNumber.from("10").pow(18);
+const exp = ethers.BigNumber.from("10").pow(18);
 
 const calcNewPrice = (oldPrice: BigNumber) =>
   oldPrice.add(oldPrice.mul(300).div(10000)).add(fixedRate);
+
+const calcMintAmount = (price: BigNumber, volume: BigNumber) =>
+  volume.mul(exp).div(calcNewPrice(price));
 
 describe("ACDM Marketplace", function () {
   let mp: Contract,
@@ -227,23 +230,55 @@ describe("ACDM Marketplace", function () {
       ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
     });
 
-    it("Should not be able to finish round before 3 days", async () => {
-      await expect(mp.changeRound()).to.be.revertedWith("Need to wait 3 days");
-    });
-
-    it("Should be able to finish round after 3 days & emit events", async () => {
-      await ethers.provider.send("evm_increaseTime", [259200]);
-      expect(await mp.changeRound())
-        .to.emit(mp, "FinishedSaleRound")
-        .withArgs(saleRound1, startPrice, initSupply)
-        .and.to.emit(mp, "StartedTradeRound")
-        .withArgs(tradeRound1);
-    });
-
     it("Should not be able to place order on sale round", async () => {
       await expect(mp.placeOrder(tenTokens, ethers.constants.One)).to.be.revertedWith(
         "Can't place order on sale round"
       );
+    });
+
+    describe("Finish sale", function () {
+      it("Should not be able to finish round before 3 days", async () => {
+        await expect(mp.changeRound()).to.be.revertedWith("Need to wait 3 days");
+      });
+
+      it("Should be able to manually finish round after 3 days & emit events", async () => {
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        expect(await mp.changeRound())
+          .to.emit(mp, "FinishedSaleRound")
+          .withArgs(saleRound1, startPrice, initSupply)
+          .and.to.emit(mp, "StartedTradeRound")
+          .withArgs(tradeRound1);
+      });
+
+      it("At the end of the round unsold tokens must be burned", async () => {
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        expect(await mp.changeRound())
+          .to.emit(acdmToken, "Transfer")
+          .withArgs(mp.address, ethers.constants.AddressZero, initSupply);
+        expect(await acdmToken.balanceOf(mp.address)).to.be.equal(0);
+      });
+
+      it("Price should not change after sale round", async () => {
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        await mp.changeRound();
+        const round = await mp.getCurrentRoundData();
+        expect(round.price).to.be.equal(startPrice);
+      });
+
+      it("Round should be marked finished if all tokens sold", async () => {
+        // Buying all tokens
+        mp.buyTokens(initSupply, { value: oneEth.mul(2) });
+        // Check that we cant buy anymore
+        await expect(mp.buyTokens(tenTokens, { value: oneEth })).to.be.revertedWith(
+          "This round is ended"
+        );
+        // Check that we can change round early
+        expect(await mp.changeRound())
+          .to.emit(mp, "FinishedSaleRound")
+          .withArgs(saleRound1, startPrice, 0)
+          .and.to.emit(mp, "StartedTradeRound")
+          .withArgs(tradeRound1);
+      });
     });
   });
 
@@ -474,32 +509,85 @@ describe("ACDM Marketplace", function () {
       );
     });
 
-    it("Should be able to finish round after 3 days & emit events", async () => {
-      await ethers.provider.send("evm_increaseTime", [259200]);
-      expect(await mp.changeRound())
-        .to.emit(mp, "FinishedTradeRound")
-        .withArgs(tradeRound1, 0)
-        .to.emit(mp, "StartedSaleRound")
-        .withArgs(saleRound2, calcNewPrice(startPrice), startPrice, 0);
-    });
+    describe("Finish trade", function () {
+      it("Should not be able to finish round before 3 days", async () => {
+        await expect(mp.changeRound()).to.be.revertedWith("Need to wait 3 days");
+      });
 
-    it("Should close all order and return tokens at the end of round", async () => {
-      // Place orders
-      await mp.placeOrder(twentyTokens, oneEth);
-      await mp.connect(alice).placeOrder(twentyTokens, oneEth);
-      await mp.connect(bob).placeOrder(twentyTokens, oneEth);
-      // Close ronud
-      await ethers.provider.send("evm_increaseTime", [259200]);
-      await mp.changeRound();
-      // Check orders status
-      const orders = await mp.getPastRoundOrders(tradeRound1);
-      expect(orders[0].isOpen).to.be.equal(false);
-      expect(orders[1].isOpen).to.be.equal(false);
-      expect(orders[2].isOpen).to.be.equal(false);
-      // Check tokens returned
-      expect(await acdmToken.balanceOf(owner.address)).to.equal(twentyTokens);
-      expect(await acdmToken.balanceOf(alice.address)).to.equal(twentyTokens);
-      expect(await acdmToken.balanceOf(bob.address)).to.be.equal(twentyTokens);
+      it("Should be able to finish round after 3 days & emit events", async () => {
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        expect(await mp.changeRound())
+          .to.emit(mp, "FinishedTradeRound")
+          .withArgs(tradeRound1, 0)
+          .to.emit(mp, "StartedSaleRound")
+          .withArgs(saleRound2, calcNewPrice(startPrice), startPrice, 0);
+      });
+
+      it("Should change token price correctly", async () => {
+        // Check first change
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        await mp.changeRound();
+        let round = await mp.getCurrentRoundData();
+        const price = calcNewPrice(startPrice);
+        expect(round.price).to.be.equal(price);
+
+        // Skipping sale round (price not changed)
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        await mp.changeRound();
+
+        // Check second change
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        await mp.changeRound();
+        round = await mp.getCurrentRoundData();
+        expect(round.price).to.be.equal(calcNewPrice(price));
+      });
+
+      it("Should mint new tokens correctly", async () => {
+        // Should mint 0 because of 0 trade volume
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        expect(await mp.changeRound())
+          .to.emit(acdmToken, "Transfer")
+          .withArgs(ethers.constants.AddressZero, mp.address, 0);
+        expect(await acdmToken.balanceOf(mp.address)).to.be.equal(0);
+
+        // Skipping sale round
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        await mp.changeRound();
+
+        // Increasing trade volume
+        await mp.placeOrder(twentyTokens, oneEth);
+        await mp.connect(alice).placeOrder(twentyTokens, oneEth);
+        await mp.buyOrder(secondOrder, twentyTokens, { value: oneEth });
+        await mp.connect(alice).buyOrder(firstOrder, fiveTokens, { value: oneEth });
+
+        // Check mint again
+        const round = await mp.getCurrentRoundData();
+        const mintAmount = calcMintAmount(round.price, round.tradeVolume);
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        expect(await mp.changeRound())
+          .to.emit(acdmToken, "Transfer")
+          .withArgs(ethers.constants.AddressZero, mp.address, mintAmount);
+        expect(await acdmToken.balanceOf(mp.address)).to.be.equal(mintAmount);
+      });
+
+      it("Should close all order and return tokens at the end of round", async () => {
+        // Place orders
+        await mp.placeOrder(twentyTokens, oneEth);
+        await mp.connect(alice).placeOrder(twentyTokens, oneEth);
+        await mp.connect(bob).placeOrder(twentyTokens, oneEth);
+        // Close ronud
+        await ethers.provider.send("evm_increaseTime", [259200]);
+        await mp.changeRound();
+        // Check orders status
+        const orders = await mp.getPastRoundOrders(tradeRound1);
+        expect(orders[0].isOpen).to.be.equal(false);
+        expect(orders[1].isOpen).to.be.equal(false);
+        expect(orders[2].isOpen).to.be.equal(false);
+        // Check tokens returned
+        expect(await acdmToken.balanceOf(owner.address)).to.equal(twentyTokens);
+        expect(await acdmToken.balanceOf(alice.address)).to.equal(twentyTokens);
+        expect(await acdmToken.balanceOf(bob.address)).to.be.equal(twentyTokens);
+      });
     });
   });
 
