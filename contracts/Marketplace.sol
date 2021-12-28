@@ -131,10 +131,6 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
       : startSaleRound(rounds[numRounds].price, rounds[numRounds].tradeVolume);
   }
 
-  function calcCost(uint256 price, uint256 amount) public pure returns (uint256) {
-    return price * (amount / 10 ** 18);
-  }
-
   function buyTokens(uint256 amount) external payable nonReentrant whenNotPaused {
     require(isSaleRound, "Can't buy in trade round");
     require(amount > 0, "Amount can't be zero");
@@ -158,6 +154,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     }
 
     emit TokenBuy(numRounds, msg.sender, address(this), amount, round.price, totalCost);
+    // TODO
     if (round.tokensLeft == 0) startTradeRound(round.price, round.tokensLeft);
   }
 
@@ -235,7 +232,11 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     return referrers[account] != address(0);
   }
 
-  function sendEther(address account, uint256 amount) private whenNotPaused {
+  function calcCost(uint256 price, uint256 amount) public pure returns (uint256) {
+    return price * (amount / 10 ** 18);
+  }
+
+  function sendEther(address account, uint256 amount) private {
     (bool sent,) = account.call{value: amount}("");
     require(sent, "Failed to send Ether");
   }
@@ -252,7 +253,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
    * @param account The account to get the referrals from.
    * @param sum The amount to calc reward from.
    */
-  function payReferrers(address account, uint256 sum) private whenNotPaused {
+  function payReferrers(address account, uint256 sum) private {
     if (hasReferrer(account)) {
       address ref1 = getUserReferrer(account);
       // Reward ref 1
@@ -264,13 +265,13 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     }
   }
 
-  function _cancelOrder(Order storage order) private whenNotPaused {
+  function _cancelOrder(Order storage order) private {
     order.isOpen = false;
     // Return unsold tokens to the msg.sender
     if (order.amount > 0) IERC20(token).safeTransfer(order.account, order.amount);
   }
 
-  function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private whenNotPaused {
+  function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private {
     // Closing orders
     closeOpenOrders();
     // Calc new price as (oldPrice + 3% + 0.000004 eth)
@@ -292,7 +293,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     emit StartedSaleRound(numRounds, newPrice, oldPrice, mintAmount);
   }
 
-  function startTradeRound(uint256 oldPrice, uint256 tokensLeft) private whenNotPaused {
+  function startTradeRound(uint256 oldPrice, uint256 tokensLeft) private {
     // Burn unsold tokens
     if (tokensLeft > 0) ACDMToken(token).burn(address(this), tokensLeft);
   
