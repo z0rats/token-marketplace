@@ -24,6 +24,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
 
   struct Round {
     uint256 createdAt;
+    uint256 endTime;
     uint256 tradeVolume; // eth
     uint256 tokensLeft;
     uint256 price;
@@ -70,6 +71,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     numRounds++;
     Round storage newRound = rounds[numRounds];
     newRound.createdAt = block.timestamp;
+    newRound.endTime = block.timestamp + roundTime;
     newRound.price = startPrice;
 
     uint256 mintAmount = startVolume * (10 ** 18) / startPrice;
@@ -125,7 +127,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   }
 
   function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
-    require((rounds[numRounds].createdAt + roundTime) <= block.timestamp, "Need to wait 3 days");
+    require(rounds[numRounds].endTime <= block.timestamp, "Need to wait 3 days");
 
     isSaleRound ? startTradeRound(rounds[numRounds].price, rounds[numRounds].tokensLeft)
       : startSaleRound(rounds[numRounds].price, rounds[numRounds].tradeVolume);
@@ -134,8 +136,10 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
   function buyTokens(uint256 amount) external payable nonReentrant whenNotPaused {
     require(isSaleRound, "Can't buy in trade round");
     require(amount > 0, "Amount can't be zero");
-    // Check that user send enough ether
     Round storage round = rounds[numRounds];
+    // Check that the round goes on
+    require(round.endTime >= block.timestamp, "This round is ended");
+    // Check that the user sent enough ether
     uint256 totalCost = calcCost(round.price, amount);
     require(msg.value >= totalCost, "Not enough ETH");
     
@@ -154,8 +158,9 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     }
 
     emit TokenBuy(numRounds, msg.sender, address(this), amount, round.price, totalCost);
-    // TODO
-    if (round.tokensLeft == 0) startTradeRound(round.price, round.tokensLeft);
+    
+    // if (round.tokensLeft == 0) startTradeRound(round.price, round.tokensLeft);
+    if (round.tokensLeft == 0) round.endTime = block.timestamp;
   }
 
   function buyOrder(uint256 id, uint256 amount) external payable nonReentrant whenNotPaused {
@@ -280,6 +285,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     numRounds++;
     Round storage newRound = rounds[numRounds];
     newRound.createdAt = block.timestamp;
+    newRound.endTime = block.timestamp + roundTime;
     newRound.price = newPrice;
 
     uint256 mintAmount = tradeVolume * (10 ** 18) / newPrice;
@@ -288,7 +294,6 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     newRound.tokensLeft = mintAmount;
 
     isSaleRound = true;
-
     emit FinishedTradeRound(numRounds - 1, tradeVolume);
     emit StartedSaleRound(numRounds, newPrice, oldPrice, mintAmount);
   }
@@ -300,6 +305,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     numRounds++;
     Round storage newRound = rounds[numRounds];
     newRound.createdAt = block.timestamp;
+    newRound.endTime = block.timestamp + roundTime;
     newRound.price = oldPrice;
 
     isSaleRound = false;
