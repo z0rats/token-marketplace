@@ -32,9 +32,14 @@ const twentyTokens = ethers.utils.parseUnits("20.0", decimals);
 const firstOrder = 0;
 const secondOrder = 1;
 const thirdOrder = 2;
-const saleRoundId = 1;
-const tradeRoundId = 2;
+const saleRound1 = 1;
+const tradeRound1 = 2;
+const saleRound2 = 3;
+const tradeRound2 = 4;
 // const exp = ethers.BigNumber.from("10").pow(18);
+
+const calcNewPrice = (oldPrice: BigNumber) =>
+  oldPrice.add(oldPrice.mul(300).div(10000)).add(fixedRate);
 
 describe("ACDM Marketplace", function () {
   let mp: Contract,
@@ -111,7 +116,7 @@ describe("ACDM Marketplace", function () {
     });
 
     it("Can get round data by ID", async () => {
-      const round = await mp.getRoundData(saleRoundId);
+      const round = await mp.getRoundData(saleRound1);
       expect(round.tradeVolume).to.be.equal(0);
       expect(round.tokensLeft).to.be.equal(initSupply);
       expect(round.price).to.be.equal(startPrice);
@@ -182,7 +187,7 @@ describe("ACDM Marketplace", function () {
       expect(await mp.buyTokens(tenTokens, { value: requiredEth }))
         .to.emit(mp, "TokenBuy")
         .withArgs(
-          saleRoundId,
+          saleRound1,
           owner.address,
           mp.address,
           tenTokens,
@@ -226,11 +231,13 @@ describe("ACDM Marketplace", function () {
       await expect(mp.changeRound()).to.be.revertedWith("Need to wait 3 days");
     });
 
-    it("Should be able to finish round after 3 days", async () => {
+    it("Should be able to finish round after 3 days & emit events", async () => {
       await ethers.provider.send("evm_increaseTime", [259200]);
       expect(await mp.changeRound())
         .to.emit(mp, "FinishedSaleRound")
-        .withArgs(saleRoundId, startPrice, initSupply);
+        .withArgs(saleRound1, startPrice, initSupply)
+        .and.to.emit(mp, "StartedTradeRound")
+        .withArgs(tradeRound1);
     });
 
     it("Should not be able to place order on sale round", async () => {
@@ -382,7 +389,7 @@ describe("ACDM Marketplace", function () {
       const price = oneEth.div(10);
       expect(await mp.connect(alice).buyOrder(firstOrder, tenTokens, { value: oneEth }))
         .to.emit(mp, "TokenBuy")
-        .withArgs(tradeRoundId, alice.address, owner.address, tenTokens, price, oneEth);
+        .withArgs(tradeRound1, alice.address, owner.address, tenTokens, price, oneEth);
     });
 
     it("Should be able to buy out the order", async () => {
@@ -393,7 +400,7 @@ describe("ACDM Marketplace", function () {
       // Check token balance changed
       expect(newAliceBalance).to.be.equal(aliceInitBalance.add(twentyTokens));
       // Check order data changed
-      const orderData = await mp.getOrderData(tradeRoundId, firstOrder);
+      const orderData = await mp.getOrderData(tradeRound1, firstOrder);
       expect(orderData.amount).to.be.equal(ethers.constants.Zero);
       // expect(orderData.isOpen).to.be.equal(false);
     });
@@ -406,7 +413,7 @@ describe("ACDM Marketplace", function () {
       // Check token balance changed
       expect(newAliceBalance).to.be.equal(aliceInitBalance.add(tenTokens));
       // Check order data changed
-      const orderData = await mp.getOrderData(tradeRoundId, firstOrder);
+      const orderData = await mp.getOrderData(tradeRound1, firstOrder);
       expect(orderData.amount).to.be.equal(tenTokens);
       expect(orderData.isOpen).to.be.equal(true);
     });
@@ -467,11 +474,13 @@ describe("ACDM Marketplace", function () {
       );
     });
 
-    it("Should be able to finish round after 3 days", async () => {
+    it("Should be able to finish round after 3 days & emit events", async () => {
       await ethers.provider.send("evm_increaseTime", [259200]);
       expect(await mp.changeRound())
         .to.emit(mp, "FinishedTradeRound")
-        .withArgs(tradeRoundId, 0);
+        .withArgs(tradeRound1, 0)
+        .to.emit(mp, "StartedSaleRound")
+        .withArgs(saleRound2, calcNewPrice(startPrice), startPrice, 0);
     });
 
     it("Should close all order and return tokens at the end of round", async () => {
@@ -483,7 +492,7 @@ describe("ACDM Marketplace", function () {
       await ethers.provider.send("evm_increaseTime", [259200]);
       await mp.changeRound();
       // Check orders status
-      const orders = await mp.getPastRoundOrders(tradeRoundId);
+      const orders = await mp.getPastRoundOrders(tradeRound1);
       expect(orders[0].isOpen).to.be.equal(false);
       expect(orders[1].isOpen).to.be.equal(false);
       expect(orders[2].isOpen).to.be.equal(false);
