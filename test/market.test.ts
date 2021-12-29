@@ -84,7 +84,13 @@ describe("ACDM Marketplace", function () {
     });
 
     it("Should set right Marketplace owner", async () => {
-      expect(await mp.hasRole(adminRole, owner.address)).to.equal(true);
+      expect(await mp.owner()).to.equal(owner.address);
+    });
+
+    it("Non owner should not be able to init Marketplace", async () => {
+      await expect(
+        mp.connect(alice).initMarketplace(startPrice, startVolume)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("Should set right Token owner", async () => {

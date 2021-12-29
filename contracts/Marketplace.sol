@@ -6,12 +6,12 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./utils/structs/EnumerableMap.sol";
 import "./token/ERC20/SafeERC20.sol";
-import "./access/AccessControl.sol";
+import "./access/Ownable.sol";
 import "./security/Pausable.sol";
 import "./token/ACDMToken.sol";
 
 /** @title ACDM marketplace. */
-contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
+contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   using SafeERC20 for IERC20;
 
   struct Order {
@@ -55,7 +55,6 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
    * @param _roundTime Round time (timestamp).
    */
   constructor(address _token, uint256 _roundTime) {
-    _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     roundTime = _roundTime;
     token = _token;
   }
@@ -65,7 +64,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
    * @param startPrice Starting price per token.
    * @param startVolume Starting trade volume.
    */
-  function initMarketplace(uint256 startPrice, uint256 startVolume) external onlyRole(DEFAULT_ADMIN_ROLE) {
+  function initMarketplace(uint256 startPrice, uint256 startVolume) external onlyOwner {
     isSaleRound = true;
 
     numRounds++;
@@ -126,7 +125,7 @@ contract Marketplace is AccessControl, ReentrancyGuard, Pausable {
     emit CancelledOrder(numRounds, id, msg.sender);
   }
 
-  function changeRound() external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
+  function changeRound() external onlyOwner whenNotPaused {
     require(rounds[numRounds].endTime <= block.timestamp, "Need to wait 3 days");
 
     isSaleRound ? startTradeRound(rounds[numRounds].price, rounds[numRounds].tokensLeft)
