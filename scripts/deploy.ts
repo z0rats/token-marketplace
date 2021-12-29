@@ -1,6 +1,6 @@
 import fs from "fs";
 import dotenv from "dotenv";
-import hre, { ethers } from "hardhat";
+import hre from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const network = hre.network.name;
@@ -10,28 +10,37 @@ for (const parameter in envConfig) {
 }
 
 async function main() {
-  const [owner]: SignerWithAddress[] = await ethers.getSigners();
+  const [owner]: SignerWithAddress[] = await hre.ethers.getSigners();
   console.log("Owner address: ", owner.address);
 
   const balance = await owner.getBalance();
   console.log(
-    `Owner account balance: ${ethers.utils.formatEther(balance).toString()}`
+    `Owner account balance: ${hre.ethers.utils.formatEther(balance).toString()}`
   );
 
-  const ACDMToken = await ethers.getContractFactory("Token");
+  const ACDMToken = await hre.ethers.getContractFactory("ACDMToken");
   const acdmToken = await ACDMToken.deploy(
-    process.env.TOKEN_NAME as string,
-    process.env.TOKEN_SYMBOL as string,
-    process.env.TOKEN_MINT as string
+    process.env.ACDM_TOKEN_NAME as string,
+    process.env.ACDM_TOKEN_SYMBOL as string
   );
 
   await acdmToken.deployed();
-  console.log(`Token deployed to ${acdmToken.address}`);
+  console.log(`ACDMToken deployed to ${acdmToken.address}`);
+
+  const TokenMarketplace = await hre.ethers.getContractFactory("Marketplace");
+  const marketplace = await TokenMarketplace.deploy(
+    acdmToken.address as string,
+    process.env.MARKETPLACE_ROUND_TIME as string // 3 days
+  );
+
+  await marketplace.deployed();
+  console.log(`TokenMarketplace deployed to ${marketplace.address}`);
 
   // Sync env file
   fs.appendFileSync(
     `.env-${network}`,
-    `\r\# Deployed at \rTOKEN_ADDRESS=${acdmToken.address}\r`
+    `\r\# Deployed at \rACDM_TOKEN_ADDRESS=${acdmToken.address}\r
+     \r\# Deployed at \rTOKEN_MARKETPLACE_ADDRESS=${marketplace.address}\r`
   );
 }
 

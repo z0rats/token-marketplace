@@ -13,6 +13,7 @@ import "./tasks/index.ts";
 
 const chainIds = {
   rinkeby: 4,
+  mumbai: 80001,
 };
 
 let mnemonic: string;
@@ -23,21 +24,22 @@ if (!process.env.MNEMONIC) {
 }
 
 let alchemyApiKey: string;
-if (!process.env.ALCHEMY_URL) {
+if (!process.env.ALCHEMY_API_KEY) {
   throw new Error("Please set your ALCHEMY_API_KEY in a .env file");
 } else {
-  alchemyApiKey = process.env.ALCHEMY_URL;
+  alchemyApiKey = process.env.ALCHEMY_API_KEY;
 }
 
 function createNetworkConfig(network: keyof typeof chainIds): NetworkUserConfig {
-  const url: string = alchemyApiKey;
+  const url: string = `https://polygon-${network}.g.alchemy.com/v2/${alchemyApiKey}`;
   return {
     accounts: {
-      count: 2,
+      count: 3,
       mnemonic,
-      // process.env.RINKEBY_PRIVATE_KEY !== undefined ? [process.env.RINKEBY_PRIVATE_KEY] : [],
     },
     chainId: chainIds[network],
+    gas: 2100000,
+    gasPrice: 8000000000,
     url,
   };
 }
@@ -55,6 +57,7 @@ const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
   networks: {
     rinkeby: createNetworkConfig("rinkeby"),
+    mumbai: createNetworkConfig("mumbai"),
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
