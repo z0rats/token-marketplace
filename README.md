@@ -24,7 +24,7 @@ Marketplace: https://mumbai.polygonscan.com/address/0xadac967b83ab20acc36e62477c
 Requires `.env` file with:
 - MNEMONIC
 - ALCHEMY_API_KEY
-- ETHERSCAN_API_KEY
+- POLYGONSCAN_API_KEY
 - CMC_API_KEY (to use gas-reporter)
 
 `.env-<network_name>` with:
