@@ -23,7 +23,6 @@ const ratePct = 300; // 3%
 const refLvlOneRate = 500; // 5%
 const refLvlTwoRate = 300; // 3%
 const refTradeRate = 250; // 2.5 %
-const tradeFee = 500; // 5 %
 const fixedRate = ethers.utils.parseEther("0.000004");
 const oneEth = ethers.utils.parseEther("1.0");
 const fiveTokens = ethers.utils.parseUnits("5.0", decimals);
@@ -35,11 +34,10 @@ const thirdOrder = 2;
 const saleRound1 = 1;
 const tradeRound1 = 2;
 const saleRound2 = 3;
-const tradeRound2 = 4;
 const exp = ethers.BigNumber.from("10").pow(18);
 
 const calcNewPrice = (oldPrice: BigNumber) =>
-  oldPrice.add(oldPrice.mul(300).div(10000)).add(fixedRate);
+  oldPrice.add(oldPrice.mul(ratePct).div(10000)).add(fixedRate);
 
 const calcMintAmount = (price: BigNumber, volume: BigNumber) =>
   volume.mul(exp).div(calcNewPrice(price));
@@ -51,12 +49,10 @@ describe("ACDM Marketplace", function () {
     ACDMToken: ContractFactory,
     owner: SignerWithAddress,
     alice: SignerWithAddress,
-    bob: SignerWithAddress,
-    addrs: SignerWithAddress[];
-  // let ownerBalance: BigNumber, aliceBalance: BigNumber, bobBalance: BigNumber;
+    bob: SignerWithAddress;
 
   before(async () => {
-    [owner, alice, bob, ...addrs] = await ethers.getSigners();
+    [owner, alice, bob] = await ethers.getSigners();
     ACDMToken = await ethers.getContractFactory("ACDMToken");
     Marketplace = await ethers.getContractFactory("Marketplace");
   });
