@@ -91,6 +91,11 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     emit UserRegistered(msg.sender, referrer);
   }
 
+  /** @notice Placing new sale order.
+   * @dev Available only on trade round. Requires token approve.
+   * @param amount The amount of tokens to sell.
+   * @param cost Total order cost (not per token).
+   */
   function placeOrder(uint256 amount, uint256 cost) external whenNotPaused {
     require(!isSaleRound, "Can't place order on sale round");
     require(amount > 0, "Amount can't be zero");
@@ -114,6 +119,9 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     emit PlacedOrder(numRounds, msg.sender, amount, cost);
   }
 
+  /** @notice Cancelling user order.
+   * @param id The id of the order to cancel.
+   */
   function cancelOrder(uint256 id) external whenNotPaused {
     Order storage order = orders[numRounds][id];
     require(msg.sender == order.account, "Not your order");
@@ -124,6 +132,9 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     emit CancelledOrder(numRounds, id, msg.sender);
   }
 
+  /** @notice Changes current round if conditions satisfied.
+   * @dev Available only to contract owner.
+   */
   function changeRound() external onlyOwner whenNotPaused {
     require(rounds[numRounds].endTime <= block.timestamp, "Need to wait 3 days");
 
@@ -131,6 +142,13 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
       : startSaleRound(rounds[numRounds].price, rounds[numRounds].tradeVolume);
   }
 
+  /** @notice Buying `amount` of tokens on sell round.
+   * @dev If tokensLeft = 0 sets round.endTime to current timestamp i.e. marks round ended.
+   * 
+   * Returns excess ether to `msg.sender`
+   *
+   * @param amount The amount of tokens to buy.
+   */
   function buyTokens(uint256 amount) external payable nonReentrant whenNotPaused {
     require(isSaleRound, "Can't buy in trade round");
     require(amount > 0, "Amount can't be zero");
@@ -161,6 +179,14 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     if (round.tokensLeft == 0) round.endTime = block.timestamp;
   }
 
+  /** @notice Buying `amount` of tokens from order.
+   * @dev If tokensLeft = 0 sets round.endTime to current timestamp i.e. marks round as ended.
+   * 
+   * Returns excess ether to `msg.sender`
+   *
+   * @param id The id of the order.
+   * @param amount The amount of tokens to buy.
+   */
   function buyOrder(uint256 id, uint256 amount) external payable nonReentrant whenNotPaused {
     require(id >= 0 && id < orders[numRounds].length, "Incorrect order id");
     Order storage order = orders[numRounds][id];
@@ -195,22 +221,40 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     emit TokenBuy(numRounds, msg.sender, order.account, amount, order.tokenPrice, totalCost);
   }
 
+  /** @notice Gets current round data.
+   * @return Object containing round data.
+   */
   function getCurrentRoundData() external view returns (Round memory) {
     return rounds[numRounds];
   }
 
+  /** @notice Gets round data by its id.
+   * @return Object containing round data.
+   */
   function getRoundData(uint256 id) external view returns (Round memory) {
     return rounds[id];
   }
 
+  /** @notice Gets orders in current round.
+   * @return Array of orders.
+   */
   function getCurrentRoundOrders() external view returns (Order[] memory) {
     return orders[numRounds];
   }
 
+  /** @notice Gets orders in specific round.
+   * @param roundID The id of the round to get orders from.
+   * @return Array of orders.
+   */
   function getPastRoundOrders(uint256 roundID) external view returns (Order[] memory) {
     return orders[roundID];
   }
 
+  /** @notice Gets order data.
+   * @param roundID The id of the round to get order from.
+   * @param id The id of the order.
+   * @return Object containing order data.
+   */
   function getOrderData(uint256 roundID, uint256 id) external view returns (Order memory) {
     return orders[roundID][id];
   }
@@ -223,22 +267,48 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   //   // }
   // }
 
+  /** @notice Gets user referrer.
+   * @param account The address of the user.
+   * @return The address of the referrer.
+   */
   function getUserReferrer(address account) public view returns (address) {
     return referrers[account];
   }
 
+  /** @notice Gets user level 2 referrers.
+   * @param account The address of the user.
+   * @return List of referrers.
+   */
   function getUserReferrers(address account) public view returns (address, address) {
     return (referrers[account], referrers[referrers[account]]);
   }
 
+  /** @notice Checks if user have a referrer.
+   * @param account The address of the user.
+   * @return True if user have a referrer.
+   */
   function hasReferrer(address account) public view returns (bool) {
     return referrers[account] != address(0);
   }
 
+  /** @notice Calculates cost from `price` and `amount`.
+   * @param price Price per token.
+   * @param amount The amount of tokens.
+   * @return The cost of the `amount` of tokens in uint.
+   */
   function calcCost(uint256 price, uint256 amount) public pure returns (uint256) {
     return price * (amount / 10 ** 18);
   }
 
+  /** @notice Sends `amount` of ether to `account`.
+   * @dev We use `call()` instead of transfer because of `send()` & `transfer()`
+   * because they take a hard dependency on gas costs by forwarding a fixed amount of gas:
+   * 2300 which may not be enough
+   * https://consensys.net/diligence/blog/2019/09/stop-using-soliditys-transfer-now/
+   *
+   * @param account The address to send ether to.
+   * @param amount The amount of ether.
+   */
   function sendEther(address account, uint256 amount) private {
     (bool sent,) = account.call{value: amount}("");
     require(sent, "Failed to send Ether");
@@ -268,16 +338,27 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     }
   }
 
+  /** @notice Cancelling an order.
+   * @dev Returns unsold tokens to order creator.
+   * @param order Order object.
+   */
   function _cancelOrder(Order storage order) private {
     order.isOpen = false;
-    // Return unsold tokens to the msg.sender
     if (order.amount > 0) IERC20(token).safeTransfer(order.account, order.amount);
   }
 
+  /** @notice Starting new sale round.
+   * @dev Starting sale round literally means "end trade round" so
+   * here we cancelling trade round orders by calling `closeOpenOrders()`
+   * and emitting `FinishedTradeRound` event.
+   *
+   * New token price calculated as: oldPrice + 3% + 0.000004 ether
+   *
+   * @param oldPrice The price of the previous round.
+   * @param tradeVolume Trading volume of the previous round.
+   */
   function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private {
-    // Closing orders
     closeOpenOrders();
-    // Calc new price as (oldPrice + 3% + 0.000004 eth)
     uint256 newPrice = oldPrice + (oldPrice * 300 / 10000) + 0.000004 ether;
     
     numRounds++;
@@ -296,8 +377,15 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     emit StartedSaleRound(numRounds, newPrice, oldPrice, mintAmount);
   }
 
+  /** @notice Starting new trade round.
+   * @dev Starting trade round literally means "end sale round" so
+   * here we burning tokens unsold in sale round calling `burn()`
+   * and emitting `FinishedSaleRound` event.
+   *
+   * @param oldPrice The price of the previous round.
+   * @param tokensLeft The amount of unsold tokens left from sale round.
+   */
   function startTradeRound(uint256 oldPrice, uint256 tokensLeft) private {
-    // Burn unsold tokens
     if (tokensLeft > 0) ACDMToken(token).burn(address(this), tokensLeft);
   
     numRounds++;
@@ -311,6 +399,7 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     emit StartedTradeRound(numRounds);
   }
 
+  /** @notice Closing open orders. */
   function closeOpenOrders() private {
     Order[] storage orders = orders[numRounds];
     for (uint256 i = 0; i < orders.length; i++) {
