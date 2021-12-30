@@ -111,13 +111,29 @@ describe("ACDM Marketplace", function () {
     });
   });
 
+  describe("Pausable", function () {
+    it("Should be able to pause contract", async () => {
+      await mp.pause();
+      await expect(mp.initMarketplace(startPrice, startVolume)).to.be.revertedWith(
+        "Pausable: paused"
+      );
+      await mp.unpause();
+      await mp.initMarketplace(startPrice, startVolume);
+    });
+
+    it("Only admin should be able to pause contract", async () => {
+      await expect(mp.connect(alice).pause()).to.be.revertedWith(
+        "Ownable: caller is not the owner"
+      );
+    });
+  });
+
   describe("Getters", function () {
     it("Can get current round data", async () => {
       const round = await mp.getCurrentRoundData();
       expect(round.tradeVolume).to.be.equal(0);
       expect(round.tokensLeft).to.be.equal(initSupply);
       expect(round.price).to.be.equal(startPrice);
-      // expect(round.orders.length).to.be.equal(0);
     });
 
     it("Can get round data by ID", async () => {
@@ -125,7 +141,6 @@ describe("ACDM Marketplace", function () {
       expect(round.tradeVolume).to.be.equal(0);
       expect(round.tokensLeft).to.be.equal(initSupply);
       expect(round.price).to.be.equal(startPrice);
-      // expect(round.orders.length).to.be.equal(0);
     });
 
     it("Can check if user have a referrer", async () => {
