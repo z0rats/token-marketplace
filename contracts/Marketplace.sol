@@ -56,12 +56,24 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     token = _token;
   }
 
+  function pause() external onlyOwner {
+    _pause();
+  }
+
+  function unpause() external onlyOwner {
+    _unpause();
+  }
+
   /** @notice Starting first Marketplace round.
    * @dev Mints `mintAmount` of tokens based on `startPrice` and `startVolume`.
    * @param startPrice Starting price per token.
    * @param startVolume Starting trade volume.
    */
-  function initMarketplace(uint256 startPrice, uint256 startVolume) external onlyOwner {
+  function initMarketplace(uint256 startPrice, uint256 startVolume)
+    external
+    onlyOwner
+    whenNotPaused
+  {
     isSaleRound = true;
 
     numRounds++;
@@ -146,7 +158,12 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
    *
    * @param amount The amount of tokens to buy.
    */
-  function buyTokens(uint256 amount) external payable nonReentrant whenNotPaused {
+  function buyTokens(uint256 amount)
+    external
+    payable
+    nonReentrant
+    whenNotPaused
+  {
     require(isSaleRound, "Can't buy in trade round");
     require(amount > 0, "Amount can't be zero");
     Round storage round = rounds[numRounds];
@@ -184,7 +201,12 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
    * @param id The id of the order.
    * @param amount The amount of tokens to buy.
    */
-  function buyOrder(uint256 id, uint256 amount) external payable nonReentrant whenNotPaused {
+  function buyOrder(uint256 id, uint256 amount)
+    external
+    payable
+    nonReentrant
+    whenNotPaused
+  {
     require(id >= 0 && id < orders[numRounds].length, "Incorrect order id");
     Order storage order = orders[numRounds][id];
     require(msg.sender != order.account, "Can't buy from yourself");
