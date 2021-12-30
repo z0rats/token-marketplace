@@ -402,7 +402,8 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   /** @notice Closing open orders. */
   function closeOpenOrders() private {
     Order[] storage orders = orders[numRounds];
-    for (uint256 i = 0; i < orders.length; i++) {
+    uint256 length = orders.length;
+    for (uint256 i = 0; i < length; i++) {
       if (orders[i].isOpen) _cancelOrder(orders[i], i);
     }
   }
