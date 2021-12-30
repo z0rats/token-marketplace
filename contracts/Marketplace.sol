@@ -128,8 +128,7 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     require(order.isOpen, "Already cancelled");
 
     rounds[numRounds].tokensLeft -= order.amount;
-    _cancelOrder(order);
-    emit CancelledOrder(numRounds, id, msg.sender);
+    _cancelOrder(order, id);
   }
 
   /** @notice Changes current round if conditions satisfied.
@@ -342,9 +341,10 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
    * @dev Returns unsold tokens to order creator.
    * @param order Order object.
    */
-  function _cancelOrder(Order storage order) private {
+  function _cancelOrder(Order storage order, uint256 id) private {
     order.isOpen = false;
     if (order.amount > 0) IERC20(token).safeTransfer(order.account, order.amount);
+    emit CancelledOrder(numRounds, id, msg.sender);
   }
 
   /** @notice Starting new sale round.
@@ -403,10 +403,7 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   function closeOpenOrders() private {
     Order[] storage orders = orders[numRounds];
     for (uint256 i = 0; i < orders.length; i++) {
-      if (orders[i].isOpen) {
-        _cancelOrder(orders[i]);
-        emit CancelledOrder(numRounds, i, msg.sender);
-      }
+      if (orders[i].isOpen) _cancelOrder(orders[i], i);
     }
   }
 }
