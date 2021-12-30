@@ -8,7 +8,7 @@ import "./ERC20/ERC20.sol";
 /** @title ACDM token. */
 contract ACDMToken is ERC20, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant BURNER_ROLE  = keccak256("BURNER_ROLE ");
+    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     /** @notice Creates token with custom name and symbol
      * @param name Name of the token.
