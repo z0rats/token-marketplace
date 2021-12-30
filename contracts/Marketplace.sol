@@ -3,7 +3,6 @@
 pragma solidity ^0.8.10;
 
 import "./security/ReentrancyGuard.sol";
-import "./utils/structs/EnumerableMap.sol";
 import "./token/ERC20/SafeERC20.sol";
 import "./access/Ownable.sol";
 import "./security/Pausable.sol";
@@ -46,7 +45,6 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   mapping(uint256 => Round) public rounds;      // roundID => Round
   mapping(uint256 => Order[]) public orders;    // roundID => orders[]
   mapping(address => address) public referrers; // referral => referrer
-  // mapping(address => address[]) public referrers; // ?
 
   /** @notice Creates Marketplace contract.
    * @dev Sets `msg.sender` as contract Admin
@@ -257,14 +255,6 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   function getOrderData(uint256 roundID, uint256 id) external view returns (Order memory) {
     return orders[roundID][id];
   }
-
-  // function getUserOrders(address account) external view returns (Order[] memory orders) {
-  //   Order[] memory orders;
-  //   // for (uint i = start; i <= end; i++) {
-  //   //   Proposal memory p = proposals[i];
-  //   //   props[i] = p;
-  //   // }
-  // }
 
   /** @notice Gets user referrer.
    * @param account The address of the user.
