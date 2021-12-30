@@ -143,7 +143,7 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   }
 
   /** @notice Buying `amount` of tokens on sell round.
-   * @dev If tokensLeft = 0 sets round.endTime to current timestamp i.e. marks round ended.
+   * @dev If tokensLeft = 0 sets round.endTime to current timestamp i.e. marks round as ended.
    * 
    * Returns excess ether to `msg.sender`
    *
@@ -301,9 +301,9 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   }
 
   /** @notice Sends `amount` of ether to `account`.
-   * @dev We use `call()` instead of transfer because of `send()` & `transfer()`
-   * because they take a hard dependency on gas costs by forwarding a fixed amount of gas:
-   * 2300 which may not be enough
+   * @dev We use `call()` instead of `send()` & `transfer()` because 
+   * they take a hard dependency on gas costs by forwarding a fixed 
+   * amount of gas: 2300 which may not be enough
    * https://consensys.net/diligence/blog/2019/09/stop-using-soliditys-transfer-now/
    *
    * @param account The address to send ether to.
