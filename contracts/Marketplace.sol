@@ -274,12 +274,14 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     nonReentrant
     whenNotPaused
   {
-    require(id >= 0 && id < orders[numRounds].length, "Incorrect order id");
+    require(amount > 0, "Amount can't be zero");
+    require(id < orders[numRounds].length, "Incorrect order id");
+
     Order storage order = orders[numRounds][id];
     require(msg.sender != order.account, "Can't buy from yourself");
     require(order.isOpen, "Order is cancelled");
-    require(amount > 0, "Amount can't be zero");
     require(amount <= order.amount, "Order doesn't have enough tokens");
+
     uint256 totalCost = calcCost(order.tokenPrice, amount);
     require(msg.value >= totalCost, "Not enough ETH");
 
@@ -301,8 +303,6 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     if (msg.value - totalCost > 0) {
       sendEther(msg.sender, msg.value - totalCost);
     }
-    // Check if order should be cancelled
-    // if (order.amount == 0) _cancelOrder(id);
 
     emit TokenBuy(numRounds, msg.sender, order.account, amount, order.tokenPrice, totalCost);
   }
