@@ -111,6 +111,37 @@ describe("ACDM Marketplace", function () {
     });
   });
 
+  describe("Withdraw", function () {
+    beforeEach(async () => {
+      // Buy 20 tokens for Owner & Alice
+      const requiredEth = startPrice.mul(20);
+      await mp.buyTokens(twentyTokens, { value: requiredEth });
+      await mp.connect(alice).buyTokens(twentyTokens, { value: requiredEth });
+      await mp.connect(bob).buyTokens(twentyTokens, { value: requiredEth });
+    });
+
+    it("Admin should be able to withdraw ETH", async () => {
+      const amount = startPrice.mul(60); // the amount of ETH that must be on the contract
+      await expect(await mp.withdraw(owner.address, amount)).to.changeEtherBalances(
+        [owner, mp],
+        [amount, -amount]
+      );
+    });
+
+    it("Withdraw emits event", async () => {
+      const amount = startPrice.mul(60); // the amount of ETH that must be on the contract
+      expect(await mp.withdraw(owner.address, amount))
+        .to.emit(mp, "Withdraw")
+        .withArgs(owner.address, amount);
+    });
+
+    it("Only admin should be able to withdraw", async () => {
+      await expect(mp.connect(alice).withdraw(alice.address, oneEth)).to.be.revertedWith(
+        "Ownable: caller is not the owner"
+      );
+    });
+  });
+
   describe("Pausable", function () {
     it("Should be able to pause contract", async () => {
       await mp.pause();

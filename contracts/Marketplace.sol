@@ -36,6 +36,7 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   event FinishedSaleRound(uint256 indexed roundID, uint256 oldPrice, uint256 burned);
   event StartedTradeRound(uint256 indexed roundID);
   event FinishedTradeRound(uint256 indexed roundID, uint256 tradeVolume);
+  event Withdraw(address indexed to, uint256 amount);
 
   uint256 public roundTime;
   uint256 public numRounds;
@@ -56,12 +57,30 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     token = _token;
   }
 
+  /** @notice Pausing some functions of contract.
+   * @dev Available only to admin.
+   * Prevents calls to functions with `whenNotPaused` modifier.
+   */
   function pause() external onlyOwner {
     _pause();
   }
 
+  /** @notice Unpausing functions of contract.
+   * @dev Available only to admin
+   * Allows calls to functions with `whenNotPaused` modifier.
+   */
   function unpause() external onlyOwner {
     _unpause();
+  }
+
+  /** @notice Withdraws ether from contract.
+   * @dev Available only to admin. Emits Withdraw event.
+   * @param to The address to withdraw to.
+   * @param amount The amount of ETH to withdraw.
+   */
+  function withdraw(address to, uint256 amount) external onlyOwner {
+    sendEther(to, amount);
+    emit Withdraw(to, amount);
   }
 
   /** @notice Starting first Marketplace round.
