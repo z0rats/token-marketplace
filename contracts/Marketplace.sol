@@ -75,11 +75,26 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
    */
   event Withdraw(address indexed to, uint256 amount);
 
+  // Basis point.
+  uint256 public constant BASIS_POINT = 10000;
+
   // Round duration (both trade and sale).
   uint256 public roundTime;
 
   // Always points to current round.
   uint256 public numRounds;
+
+  // Token price multiplier in basis point.
+  uint256 public tokenPriceMultiplier = 300;
+
+  // Sale round reward for level 1 referrer in basis point.
+  uint256 public refLvlOneRate = 500;
+
+  // Sale round reward for level 2 referrer in basis point.
+  uint256 public refLvlTwoRate = 300;
+
+  // Trade round reward for referrers in basis point.
+  uint256 public refTradeRate = 250;
 
   // The address of the ACDM token.
   address public token;
@@ -293,8 +308,11 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     round.tokensLeft -= amount;
     round.tradeVolume += totalCost;
 
-    // Transfer 95% ETH to order owner (total - 5%)
-    sendEther(order.account, totalCost - (totalCost * 500 / 10000));
+    // Transfer 95% ETH to order owner (totalCost - 5% referrers rewards)
+    sendEther(
+      order.account,
+      totalCost - (totalCost * (refTradeRate + refTradeRate) / BASIS_POINT)
+    );
 
     // Send rewards to referrers
     payReferrers(order.account, totalCost);
@@ -395,10 +413,10 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
   /** @notice Transfers reward in ETH to `account` referrers.
    * @dev This contract implements two-lvl referral system:
    *
-   * In sale round Lvl1 referral gets 5% and Lvl2 gets 3%
+   * In sale round Lvl1 referral gets `refLvlOneRate`% and Lvl2 gets `refLvlTwoRate`%
    * If there are no referrals or only one, the contract gets these percents
    *
-   * In trade round every referral takes 2.5% reward
+   * In trade round every referral takes `refTradeRate`% reward
    * If there are no referrals or only one, the contract gets these percents
    *
    * @param account The account to get the referrals from.
@@ -408,10 +426,10 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     if (hasReferrer(account)) {
       address ref1 = getUserReferrer(account);
       // Reward ref 1
-      sendEther(ref1, sum * (isSaleRound ? 500 : 250) / 10000);
+      sendEther(ref1, sum * (isSaleRound ? refLvlOneRate : refTradeRate) / BASIS_POINT);
       // Reward ref 2 (if exists)
-      if (hasReferrer(ref1)) {
-        sendEther(getUserReferrer(ref1), sum * (isSaleRound ? 300 : 250) / 10000);
+      if (hasReferrer(ref1) && getUserReferrer(ref1) != account) {
+        sendEther(getUserReferrer(ref1), sum * (isSaleRound ? refLvlTwoRate : refTradeRate) / BASIS_POINT);
       }
     }
   }
@@ -431,14 +449,14 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
    * here we cancelling trade round orders by calling `closeOpenOrders()`
    * and emitting `FinishedTradeRound` event.
    *
-   * New token price calculated as: oldPrice + 3% + 0.000004 ether
+   * New token price calculated as: `oldPrice` + `tokenPriceMultiplier`% + 0.000004 ether
    *
    * @param oldPrice The price of the previous round.
    * @param tradeVolume Trading volume of the previous round.
    */
   function startSaleRound(uint256 oldPrice, uint256 tradeVolume) private {
     closeOpenOrders();
-    uint256 newPrice = oldPrice + (oldPrice * 300 / 10000) + 0.000004 ether;
+    uint256 newPrice = oldPrice + (oldPrice * tokenPriceMultiplier / BASIS_POINT) + 0.000004 ether;
     
     numRounds++;
     Round storage newRound = rounds[numRounds];
