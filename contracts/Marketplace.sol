@@ -78,7 +78,11 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
    * @param to The address to withdraw to.
    * @param amount The amount of ETH to withdraw.
    */
-  function withdraw(address to, uint256 amount) external onlyOwner {
+  function withdraw(address to, uint256 amount)
+    external
+    onlyOwner
+    whenNotPaused
+  {
     sendEther(to, amount);
     emit Withdraw(to, amount);
   }
