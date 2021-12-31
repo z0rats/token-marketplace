@@ -143,9 +143,9 @@ describe("ACDM Marketplace", function () {
   });
 
   describe("Pausable", function () {
-    it("Should be able to pause contract", async () => {
+    it("Should be able to pause & unpause contract", async () => {
       await mp.pause();
-      await expect(mp.initMarketplace(startPrice, startVolume)).to.be.revertedWith(
+      await expect(mp.withdraw(alice.address, oneEth)).to.be.revertedWith(
         "Pausable: paused"
       );
       await mp.unpause();
