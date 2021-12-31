@@ -28,19 +28,63 @@ contract Marketplace is Ownable, ReentrancyGuard, Pausable {
     uint256 price;
   }
 
+  /**
+   * @dev Emitted when `account` registers it's `referrer`.
+   */
   event UserRegistered(address indexed account, address indexed referrer);
+
+  /**
+   * @dev Emitted when `account` placing a sale order.
+   */
   event PlacedOrder(uint256 indexed roundID, address indexed account, uint256 amount, uint256 cost);
+
+  /**
+   * @dev Emitted when `account` cancelling it's order.
+   */
   event CancelledOrder(uint256 indexed roundID, uint256 indexed orderID, address indexed account);
+
+  /**
+   * @dev Emitted when `buyer` buying tokens in both sale or trade round.
+   * On sale round `seller` is the Marketplace contract address.
+   * On trade round `seller` is the order owner.
+   */
   event TokenBuy(uint256 indexed roundID, address indexed buyer, address indexed seller, uint256 amount, uint256 price, uint256 cost);
+
+  /**
+   * @dev Emitted when a new sale round started.
+   */
   event StartedSaleRound(uint256 indexed roundID, uint256 newPrice, uint256 oldPrice, uint256 minted);
+
+  /**
+   * @dev Emitted when a trade round is finished.
+   */
   event FinishedSaleRound(uint256 indexed roundID, uint256 oldPrice, uint256 burned);
+
+  /**
+   * @dev Emitted when a new trade round started.
+   */
   event StartedTradeRound(uint256 indexed roundID);
+
+  /**
+   * @dev Emitted when a trade round is finished.
+   */
   event FinishedTradeRound(uint256 indexed roundID, uint256 tradeVolume);
+
+  /**
+   * @dev Emitted when admin withdraws ETH from Marketplace.
+   */
   event Withdraw(address indexed to, uint256 amount);
 
+  // Round duration (both trade and sale).
   uint256 public roundTime;
+
+  // Always points to current round.
   uint256 public numRounds;
+
+  // The address of the ACDM token.
   address public token;
+
+  // Shows the type of the current round (sale/trade)
   bool public isSaleRound;
 
   mapping(uint256 => Round) public rounds;      // roundID => Round
