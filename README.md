@@ -2,6 +2,12 @@
 
 This project implements a marketplace for sale and exchange of tokens.
 
+### Verified contracts on Polygon testnet:
+
+Token: https://mumbai.polygonscan.com/token/0xa9b67B7002ab817E2D0E4488371c384868AcD72E
+
+Marketplace: https://mumbai.polygonscan.com/address/0xDaeD864cDfb7BBFdA91Eb7c0f857BFDc4338D5B2
+
 ## Marketplace description
 
 Marketplace consists of two rounds following one another:
@@ -38,12 +44,6 @@ There is also a **referral program**:
 - When buying ACDM tokens in Sale round, referrer_1 will be sent 5% of his purchase, referrer_2 will be sent 3%, the platform itself will receive 92% in the absence of referrers all get platform.
 
 - When buying in Trade round the user who placed an order to sell ACDM tokens will receive 95% of ETH and 2.5% will be received by the referrers, in their absence the platform takes these percent for itself.
-
-### Verified contracts on Polygon testnet:
-
-Token: https://mumbai.polygonscan.com/token/0xa9b67B7002ab817E2D0E4488371c384868AcD72E
-
-Marketplace: https://mumbai.polygonscan.com/address/0xDaeD864cDfb7BBFdA91Eb7c0f857BFDc4338D5B2
 
 ### How to run
 
