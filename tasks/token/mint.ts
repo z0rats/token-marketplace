@@ -13,19 +13,17 @@ task("mint", "Mint tokens on provided account")
       process.env[parameter] = envConfig[parameter];
     }
 
-    const cryptonToken = await hre.ethers.getContractAt(
-      process.env.CRYPTON_TOKEN_NAME as string,
-      taskArgs.token || (process.env.CRYPTON_TOKEN_ADDRESS as string)
+    const token = await hre.ethers.getContractAt(
+      process.env.ACDM_TOKEN_NAME as string,
+      taskArgs.token || (process.env.ACDM_TOKEN_ADDRESS as string)
     );
-
-    // const [, alice] = await hre.ethers.getSigners();
 
     const amount = hre.ethers.utils.parseUnits(
       taskArgs.amount,
-      process.env.CRYPTON_TOKEN_DECIMALS
+      process.env.ACDM_TOKEN_DECIMALS
     );
 
     console.log(`\nMinting ${taskArgs.amount} tokens to ${taskArgs.to}...\n`);
-    await cryptonToken.mint(taskArgs.to, amount);
+    await token.mint(taskArgs.to, amount);
     console.log(`Done!`);
   });
