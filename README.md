@@ -1,14 +1,9 @@
 # ACDM token marketplace
-
-This project implements a marketplace for sale and exchange of tokens.
-
-### Verified contracts on Polygon testnet:
-
-Token: https://mumbai.polygonscan.com/token/0xa9b67B7002ab817E2D0E4488371c384868AcD72E
-
-Marketplace: https://mumbai.polygonscan.com/address/0xDaeD864cDfb7BBFdA91Eb7c0f857BFDc4338D5B2
+*This is a training project, you should not use any of it's code in production because it's not properly audited and tested.*  
 
 ## Marketplace description
+
+This project implements a marketplace for sale and exchange of tokens.
 
 Marketplace consists of two rounds following one another:
 - **Sale round** - where users can buy ACDM token from the marketplace at a fixed price (ETH).
@@ -45,6 +40,12 @@ There is also a **referral program**:
 
 - When buying in Trade round the user who placed an order to sell ACDM tokens will receive 95% of ETH and 2.5% will be received by the referrers, in their absence the platform takes these percent for itself.
 
+### Verified contracts on Polygon testnet:
+
+Token: https://mumbai.polygonscan.com/token/0xa9b67B7002ab817E2D0E4488371c384868AcD72E
+
+Marketplace: https://mumbai.polygonscan.com/address/0xDaeD864cDfb7BBFdA91Eb7c0f857BFDc4338D5B2
+
 ### How to run
 
 Create a `.env` file using the `.env.example` template with the following content
@@ -54,21 +55,10 @@ Create a `.env` file using the `.env.example` template with the following conten
 - [ETHERSCAN_API_KEY](https://etherscan.io/apis) - optional, polygonscan is used in config
 - MNEMONIC
 
-`.env-<network_name>` with:
-- ACDM_TOKEN_NAME
-- ACDM_TOKEN_SYMBOL
-- ACDM_TOKEN_DECIMALS
-- TOKEN_MARKETPLACE_NAME
-- MARKETPLACE_ROUND_TIME
-- MARKETPLACE_START_PRICE
-- MARKETPLACE_START_VOLUME
-
 Try running some of the following tasks and don't forget to specify network (ex. `--network mumbai`):
 
 ```shell
 npx hardhat coverage
-npx hardhat test test/market.test.ts
-npx hardhat test test/token.test.ts
 
 npx hardhat run scripts/deploy.ts
 
